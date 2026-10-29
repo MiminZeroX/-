@@ -1,0 +1,6 @@
+# ข้อมูลการจองจริงและไฟล์สำรอง (ไม่เก็บใน git)
+data/
+node_modules/
+*.log
+.DS_Store
+Thumbs.db

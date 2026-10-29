@@ -1,0 +1,15 @@
+{
+  "name": "bangrak-room-booking",
+  "version": "1.0.0",
+  "description": "ระบบจองห้องประชุม สำนักงานเขตบางรัก — เว็บภายในองค์กร ใช้ผ่าน Wi-Fi/LAN ไม่ต้องติดตั้งแอป",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}
