@@ -52,28 +52,28 @@ server.listen(port, host, () => {
   const urls = lanAddresses().map(
     (ip) => `http://${ip}${port === 80 ? "" : `:${port}`}`,
   );
-  const line = "─".repeat(58);
+  const line = "-".repeat(58);
   const out = [
     "",
     `  ${line}`,
     "   ระบบจองห้องประชุม · สำนักงานเขตบางรัก",
     `  ${line}`,
-    "   ✔ ระบบพร้อมใช้งานแล้ว",
+    "   ระบบพร้อมใช้งานแล้ว",
     "",
     "   เปิดจากเครื่องอื่นที่เชื่อม Wi-Fi/LAN เดียวกัน:",
     ...(urls.length
-      ? urls.map((u) => `     ➜  ${u}`)
+      ? urls.map((u) => `     ${u}`)
       : ["     (ไม่พบเครือข่าย — ตรวจสอบการเชื่อมต่อ Wi-Fi/LAN)"]),
-    `     ➜  http://localhost${port === 80 ? "" : `:${port}`}   (บนเครื่องนี้)`,
+    `     http://localhost${port === 80 ? "" : `:${port}`}   (บนเครื่องนี้)`,
     "",
-    `   หน้าผู้ดูแลระบบ :  ${urls[0] || `http://localhost:${port}`}/admin`,
-    `   จอแสดงผลหน้าห้อง:  ${urls[0] || `http://localhost:${port}`}/display`,
+    `   หน้าผู้ดูแลระบบ :  ${urls[0] || `http://localhost:${port}`}/admin.html`,
+    `   จอแสดงผลหน้าห้อง:  ${urls[0] || `http://localhost:${port}`}/display.html`,
     `   เก็บข้อมูลที่     :  ${dataDir}`,
   ];
   if (app.firstRun) {
     out.push(
       "",
-      "   ★ ติดตั้งครั้งแรก — บัญชีผู้ดูแล:  admin / admin1234",
+      "   ติดตั้งครั้งแรก — บัญชีผู้ดูแล:  admin / admin1234",
       "     (ระบบจะให้เปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งแรก)",
     );
   }

@@ -624,7 +624,7 @@ function createApp(opts = {}) {
         changes.push(
           k === "note" || k === "adminNote"
             ? `${label}`
-            : `${label}: ${show(before)} → ${show(after)}`,
+            : `${label}: ${show(before)} เป็น ${show(after)}`,
         );
       }
     }
@@ -1482,7 +1482,7 @@ function createApp(opts = {}) {
         log(
           ctx,
           `booking.${status === "approved" ? "approve" : status === "rejected" ? "reject" : status === "cancelled" ? "cancel" : "status"}`,
-          `${b.code} → ${STATUS_TH[status]} ${describe(b)}${reason ? ` เหตุผล: ${reason}` : ""}`,
+          `${b.code} เปลี่ยนเป็น ${STATUS_TH[status]} ${describe(b)}${reason ? ` เหตุผล: ${reason}` : ""}`,
           { ref: b.code },
         );
         bookingsChanged("status", [b]);
@@ -1670,7 +1670,7 @@ function createApp(opts = {}) {
         "room.reorder",
         `จัดลำดับห้องใหม่: ${sortedRooms()
           .map((r) => r.name)
-          .join(" → ")}`,
+          .join(", ")}`,
       );
       broadcast("config", { changed: ["rooms"] });
       return { rooms: sortedRooms() };
@@ -1870,7 +1870,7 @@ function createApp(opts = {}) {
           throw new HttpError(400, "กรุณาระบุชื่อ", {
             fields: { name: "กรุณาระบุชื่อ" },
           });
-        if (name !== a.name) changes.push(`ชื่อ → ${name}`);
+        if (name !== a.name) changes.push(`ชื่อเป็น ${name}`);
         a.name = name;
       }
       if (has(ctx.body, "role")) {
@@ -1881,7 +1881,7 @@ function createApp(opts = {}) {
           if (a.role === "admin" && activeAdmins().length <= 1)
             throw new HttpError(400, "ต้องมีผู้ดูแลระบบอย่างน้อย 1 คน");
           changes.push(
-            `สิทธิ์ → ${role === "admin" ? "ผู้ดูแลระบบ" : "เจ้าหน้าที่"}`,
+            `สิทธิ์เป็น ${role === "admin" ? "ผู้ดูแลระบบ" : "เจ้าหน้าที่"}`,
           );
           a.role = role;
         }
@@ -2291,12 +2291,13 @@ function createApp(opts = {}) {
       );
   }
 
-  const PAGES = {
-    "/": "/index.html",
+  // ที่อยู่สั้นที่จำง่าย พาไปยังไฟล์ HTML ของแต่ละหน้า (เช่น /admin -> /admin.html)
+  const SHORT_PATHS = {
     "/admin": "/admin.html",
-    "/admin/": "/admin.html",
     "/display": "/display.html",
-    "/display/": "/display.html",
+    "/calendar": "/calendar.html",
+    "/book": "/book.html",
+    "/my": "/my.html",
   };
 
   async function handle(req, res) {
@@ -2314,7 +2315,13 @@ function createApp(opts = {}) {
       }
       if (req.method !== "GET" && req.method !== "HEAD")
         throw new HttpError(405, "Method not allowed");
-      if (serveStatic(req, res, PAGES[url.pathname] || url.pathname)) return;
+      const short = SHORT_PATHS[url.pathname.replace(/\/+$/, "")];
+      if (short) {
+        res.writeHead(302, { Location: short + url.search });
+        res.end();
+        return;
+      }
+      if (serveStatic(req, res, url.pathname === "/" ? "/index.html" : url.pathname)) return;
       res.writeHead(302, { Location: "/" });
       res.end();
     } catch (err) {

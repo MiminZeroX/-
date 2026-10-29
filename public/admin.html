@@ -3,25 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>ผู้ดูแลระบบ · ระบบจองห้องประชุม</title>
+    <title>แดชบอร์ด · ผู้ดูแลระบบ · ระบบจองห้องประชุม · สำนักงานเขตบางรัก</title>
     <meta name="robots" content="noindex" />
     <meta name="theme-color" content="#f3f6f4" />
-    <link rel="icon" href="/assets/icons/icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png" />
-    <link rel="preload" href="/assets/fonts/anuphan-thai-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="/assets/css/base.css" />
-    <link rel="stylesheet" href="/assets/css/app.css" />
-    <link rel="stylesheet" href="/assets/css/admin.css" />
-    <script src="/assets/js/boot.js"></script>
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="จองห้องประชุม" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="preload" href="fonts/anuphan-thai-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="css.css" />
+    <script src="js.js"></script>
   </head>
-  <body class="admin-body">
+  <body class="admin-body" data-app="admin" data-page="dashboard">
     <div class="app-bg" aria-hidden="true"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
-    <div id="root"></div>
+    <div id="root" aria-busy="true"></div>
     <div id="toasts"></div>
     <div id="modal-root"></div>
     <div id="print-root"></div>
-    <div class="viz-tip" id="viz-tip" role="tooltip" hidden></div>
-    <noscript><p style="padding: 24px">กรุณาเปิดใช้งาน JavaScript</p></noscript>
-    <script type="module" src="/assets/js/admin.js"></script>
+    <noscript><p class="noscript">กรุณาเปิดใช้งาน JavaScript</p></noscript>
   </body>
 </html>

@@ -170,8 +170,10 @@ function createStatic(rootDir) {
       ...SECURITY_HEADERS,
       "Content-Type": MIME[ext] || "application/octet-stream",
       ETag: entry.etag,
-      "Cache-Control":
-        ext === ".html" ? "no-cache" : "public, max-age=300, must-revalidate",
+      // html/css/js ตรวจกับเซิร์ฟเวอร์ทุกครั้ง (ได้ 304 เร็วบน LAN) เพื่อให้อัปเดตระบบมีผลทันที
+      "Cache-Control": [".html", ".css", ".js", ".webmanifest"].includes(ext)
+        ? "no-cache"
+        : "public, max-age=86400",
       Vary: "Accept-Encoding",
     };
     if (req.headers["if-none-match"] === entry.etag) {
