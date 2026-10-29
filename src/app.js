@@ -1,6 +1,7 @@
 "use strict";
 
 const os = require("os");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { Store } = require("./store");
@@ -15,13 +16,29 @@ const {
   sendJson,
   sendFile,
   readJson,
+  redirect,
+  createHostCheck,
+  hostName,
   parseCookies,
   clientIp,
   createStatic,
 } = require("./http");
 const {
+  cleanText,
+  cleanStr,
+  cleanList,
+  has,
+  validateSetting,
+  settingsIssue,
+  sanitizeSettings,
+  sanitizeBooking,
+} = require("./sanitize");
+const {
   hashPassword,
+  hashPasswordSync,
   verifyPassword,
+  needsRehash,
+  passwordIssue,
   randomToken,
   randomId,
   sha256,
@@ -63,9 +80,15 @@ const TH_MONTHS = [
   "พ.ย.",
   "ธ.ค.",
 ];
-const DUMMY_HASH = hashPassword("dummy-password-for-timing");
+const DUMMY_HASH = hashPasswordSync("dummy-password-for-timing");
 
 const digits = (s) => String(s || "").replace(/\D/g, "");
+function safeEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || !a || !b) return false;
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
 const thaiDate = (d) =>
   `${Number(d.slice(8, 10))} ${TH_MONTHS[Number(d.slice(5, 7)) - 1]} ${Number(d.slice(0, 4)) + 543}`;
 function fmtDur(min) {
@@ -76,21 +99,6 @@ function fmtDur(min) {
     "0 นาที"
   );
 }
-function cleanStr(v, max) {
-  if (typeof v !== "string" && typeof v !== "number") return "";
-  return String(v)
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
-    .trim()
-    .slice(0, max);
-}
-function cleanList(v, maxItems = 30, maxLen = 60) {
-  if (!Array.isArray(v)) return [];
-  return [...new Set(v.map((x) => cleanStr(x, maxLen)).filter(Boolean))].slice(
-    0,
-    maxItems,
-  );
-}
-const has = (obj, k) => Object.prototype.hasOwnProperty.call(obj, k);
 
 function lanAddresses() {
   const out = [];
@@ -107,17 +115,42 @@ function lanAddresses() {
 function createApp(opts = {}) {
   const dataDir = opts.dataDir || path.join(__dirname, "..", "data");
   const publicDir = opts.publicDir || path.join(__dirname, "..", "public");
-  const store = new Store(dataDir).load();
+  const store = new Store(dataDir, {
+    initialPassword: opts.initialPassword,
+  }).load();
+  const secureCookie = !!opts.secure;
+  // รหัสเฉพาะของจอหน้าห้อง (ใช้เช็คอินโดยไม่ต้องมีโทเคนผู้จอง) — สุ่มครั้งแรกแล้วเก็บไว้
+  if (!/^[A-Za-z0-9_-]{32,}$/.test(store.db.kioskKey || "")) {
+    store.db.kioskKey = randomToken(24);
+    store.flushDb();
+  }
   const serveStatic = createStatic(publicDir);
+  const hostAllowed = createHostCheck(
+    opts.hostname === undefined ? os.hostname() : opts.hostname,
+    opts.allowedHosts || [],
+  );
   const sessions = new Map(); // sha256(token) -> { adminId, expires, ip, createdAt }
   const sseClients = new Set();
+  const ssePerIp = new Map(); // ip -> จำนวนการเชื่อมต่อสด
+  const SSE_PER_IP = 16;
+  const warnedHosts = new Set();
   const limits = {
     booking: new RateLimiter(30, 3600000),
     lookup: new RateLimiter(20, 3600000),
+    // ค้นหาด้วยรหัสเดียวกันแต่เบอร์ผิดซ้ำ ๆ = เดาเบอร์ → ล็อกรหัสนั้น
+    lookupCode: new RateLimiter(5, 3600000),
     login: new RateLimiter(8, 15 * 60000),
+    // จำกัดต่อบัญชีด้วย (กันการเดารหัสจากหลายเครื่อง/หลาย IP)
+    loginUser: new RateLimiter(12, 15 * 60000),
+    password: new RateLimiter(5, 15 * 60000),
+    my: new RateLimiter(240, 10 * 60000),
   };
+  const MAX_ACTIVE_PER_DEVICE = 60;
+  const MAX_HASHING = 4; // จำนวนการตรวจรหัสผ่านพร้อมกันสูงสุด
+  let hashing = 0;
   const startedAt = Date.now();
   let port = opts.port || 0;
+  let scheme = opts.secure ? "https" : "http";
   const timers = [];
   const S = () => store.db.settings;
 
@@ -182,7 +215,6 @@ function createApp(opts = {}) {
       action,
       dates: [...new Set(list.map((b) => b.date))],
       rooms: [...new Set(list.map((b) => b.roomId))],
-      codes: list.map((b) => b.code).slice(0, 20),
       pending: list.some((b) => b.status === "pending"),
       count: list.length,
     });
@@ -209,7 +241,6 @@ function createApp(opts = {}) {
     const block = b.kind === "block";
     return {
       id: b.id,
-      code: b.code,
       roomId: b.roomId,
       date: b.date,
       start: b.start,
@@ -226,10 +257,42 @@ function createApp(opts = {}) {
     };
   }
 
+  // ข้อมูลที่ผู้จองเห็นได้ (กำหนดแบบรายการที่อนุญาต ฟิลด์ใหม่จะไม่รั่วโดยไม่ตั้งใจ)
+  const OWNER_FIELDS = [
+    "id",
+    "code",
+    "roomId",
+    "date",
+    "start",
+    "end",
+    "status",
+    "kind",
+    "title",
+    "organizer",
+    "department",
+    "phone",
+    "email",
+    "note",
+    "attendees",
+    "equipment",
+    "services",
+    "seriesId",
+    "checkedIn",
+    "checkedInAt",
+    "endedEarly",
+    "released",
+    "createdAt",
+    "updatedAt",
+    "approvedAt",
+    "rejectReason",
+    "rejectedAt",
+    "cancelReason",
+    "cancelledAt",
+  ];
   function ownerView(b) {
-    // eslint-disable-next-line no-unused-vars
-    const { tokenHashes, createdIp, adminNote, history, ...rest } = b;
-    return rest;
+    const out = {};
+    for (const k of OWNER_FIELDS) if (has(b, k)) out[k] = b[k];
+    return out;
   }
 
   function adminView(b) {
@@ -274,7 +337,8 @@ function createApp(opts = {}) {
       note: 1000,
     };
     for (const [k, max] of Object.entries(texts))
-      if (has(body, k)) b[k] = cleanStr(body[k], max);
+      if (has(body, k))
+        b[k] = k === "note" ? cleanText(body[k], max) : cleanStr(body[k], max);
     if (has(body, "attendees"))
       b.attendees = Math.max(
         0,
@@ -437,7 +501,7 @@ function createApp(opts = {}) {
     const b = pickBookingInput(body, base);
     if (admin) {
       b.kind = body.kind === "block" ? "block" : "meeting";
-      b.adminNote = cleanStr(body.adminNote, 500);
+      b.adminNote = cleanText(body.adminNote, 500);
       if (b.kind === "block") {
         b.organizer = b.organizer || ctx.actor;
         b.department = "";
@@ -446,13 +510,14 @@ function createApp(opts = {}) {
     }
     throwFieldErrors(fieldErrors(b, { admin, force }));
 
+    const tooMany = (rl) =>
+      new HttpError(
+        429,
+        `จองจากอุปกรณ์นี้ถี่เกินไป ลองใหม่ในอีก ${Math.ceil(rl.retryAfter / 60)} นาที หรือติดต่อผู้ดูแลห้องประชุม`,
+      );
     if (!admin) {
       const rl = limits.booking.check(ctx.ip, s.bookingRateLimitPerHour);
-      if (!rl.ok)
-        throw new HttpError(
-          429,
-          `ทำรายการบ่อยเกินไป กรุณาลองใหม่ในอีก ${Math.ceil(rl.retryAfter / 60)} นาที`,
-        );
+      if (!rl.ok) throw tooMany(rl);
     }
 
     const dates = expandDates(b.date, body.repeat);
@@ -486,6 +551,28 @@ function createApp(opts = {}) {
           conflicts: bad,
         },
       );
+    }
+
+    if (!admin) {
+      // นับตามจำนวนการจองที่จะสร้างจริง (จองซ้ำหลายวัน = หลายครั้ง)
+      const rl = limits.booking.check(
+        ctx.ip,
+        s.bookingRateLimitPerHour,
+        good.length,
+      );
+      if (!rl.ok) throw tooMany(rl);
+      const fromDevice = store.db.bookings.filter(
+        (x) =>
+          x.createdIp === ctx.ip &&
+          x.createdBy === "public" &&
+          ACTIVE.has(x.status) &&
+          !hasEnded(x),
+      ).length;
+      if (fromDevice + good.length > MAX_ACTIVE_PER_DEVICE)
+        throw new HttpError(
+          400,
+          `อุปกรณ์นี้มีการจองที่ยังไม่ถึงกำหนด ${fromDevice} รายการแล้ว (สูงสุด ${MAX_ACTIVE_PER_DEVICE}) กรุณาติดต่อผู้ดูแลห้องประชุม`,
+        );
     }
 
     if (!admin && s.maxActivePerPhone > 0 && b.phone) {
@@ -535,7 +622,8 @@ function createApp(opts = {}) {
       store.db.bookings.push(bk);
       return bk;
     });
-    if (!admin) limits.booking.hit(ctx.ip, s.bookingRateLimitPerHour);
+    if (!admin)
+      limits.booking.hit(ctx.ip, s.bookingRateLimitPerHour, created.length);
     store.saveDb();
 
     const first = created[0];
@@ -562,7 +650,10 @@ function createApp(opts = {}) {
     const b = bookingById(id);
     const token = ctx.body.token || ctx.req.headers["x-booking-token"];
     if (!token || !b.tokenHashes.includes(sha256(token)))
-      throw new HttpError(403, "ไม่มีสิทธิ์จัดการการจองนี้");
+      throw new HttpError(
+        403,
+        "อุปกรณ์นี้ไม่มีสิทธิ์จัดการการจองนี้ — ค้นหาด้วยรหัสการจองและเบอร์โทรในหน้า “การจองของฉัน” เพื่อเพิ่มการจองลงในอุปกรณ์นี้",
+      );
     return b;
   }
 
@@ -572,7 +663,7 @@ function createApp(opts = {}) {
       if (has(body, "kind"))
         next.kind = body.kind === "block" ? "block" : "meeting";
       if (has(body, "adminNote"))
-        next.adminNote = cleanStr(body.adminNote, 500);
+        next.adminNote = cleanText(body.adminNote, 500);
     }
     throwFieldErrors(fieldErrors(next, { admin, force }));
     const timeChanged = ["roomId", "date", "start", "end"].some(
@@ -630,11 +721,20 @@ function createApp(opts = {}) {
     }
     if (!changes.length) return { changed: false, statusReset: false };
     const prevDate = b.date;
+    // แก้ไขเนื้อหาที่ผู้อนุมัติพิจารณาไปแล้ว ต้องกลับไปรออนุมัติใหม่
+    const reviewChanged = [
+      "title",
+      "organizer",
+      "department",
+      "attendees",
+      "equipment",
+      "services",
+    ].some((k) => JSON.stringify(next[k]) !== JSON.stringify(b[k]));
     Object.assign(b, next);
     let statusReset = false;
     if (
       !admin &&
-      timeChanged &&
+      (timeChanged || reviewChanged) &&
       b.status === "approved" &&
       needsApproval(roomById(b.roomId))
     ) {
@@ -655,7 +755,7 @@ function createApp(opts = {}) {
   }
 
   function setStatus(ctx, b, status, reason) {
-    if (!STATUS_TH[status]) throw new HttpError(400, "สถานะไม่ถูกต้อง");
+    if (!has(STATUS_TH, status)) throw new HttpError(400, "สถานะไม่ถูกต้อง");
     if (b.status === status) return false;
     if (ACTIVE.has(status) && !ACTIVE.has(b.status)) {
       const c = findConflict(b.roomId, b.date, b.start, b.end, new Set([b.id]));
@@ -685,63 +785,7 @@ function createApp(opts = {}) {
     return true;
   }
 
-  // ---------------------------------------------------------------- settings validation
-  function validateSetting(key, value) {
-    const sc = SETTINGS_SCHEMA[key];
-    const bad = (msg) => new HttpError(400, msg, { field: key });
-    if (!sc) throw bad(`ไม่รู้จักการตั้งค่า "${key}"`);
-    switch (sc.type) {
-      case "bool":
-        if (typeof value !== "boolean") throw bad("ค่าต้องเป็น เปิด/ปิด");
-        return value;
-      case "int": {
-        const n = Number(value);
-        if (!Number.isInteger(n) || n < sc.min || n > sc.max)
-          throw bad(`กรุณาระบุตัวเลข ${sc.min}–${sc.max}`);
-        return n;
-      }
-      case "str": {
-        if (typeof value !== "string") throw bad("รูปแบบข้อความไม่ถูกต้อง");
-        const v = value.replace(/\r\n/g, "\n").trim();
-        if (v.length < (sc.min || 0)) throw bad("กรุณากรอกข้อมูล");
-        if (v.length > sc.max) throw bad(`ข้อความยาวเกิน ${sc.max} ตัวอักษร`);
-        return v;
-      }
-      case "time":
-        if (Number.isNaN(toMin(value))) throw bad("รูปแบบเวลาไม่ถูกต้อง");
-        return value;
-      case "enum": {
-        const found = sc.values.find((v) => String(v) === String(value));
-        if (found === undefined) throw bad("ค่าที่เลือกไม่ถูกต้อง");
-        return found;
-      }
-      case "list": {
-        if (!Array.isArray(value)) throw bad("รูปแบบรายการไม่ถูกต้อง");
-        const list = cleanList(value, 1000, 1000);
-        if (list.length > sc.maxItems)
-          throw bad(`รายการได้ไม่เกิน ${sc.maxItems} รายการ`);
-        if (list.some((v) => v.length > sc.maxLen))
-          throw bad(`แต่ละรายการยาวไม่เกิน ${sc.maxLen} ตัวอักษร`);
-        return list;
-      }
-      case "dataurl": {
-        if (value === "") return "";
-        const ok =
-          typeof value === "string" &&
-          /^data:image\/(png|jpeg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(
-            value,
-          );
-        if (!ok)
-          throw bad("ไฟล์รูปภาพไม่ถูกต้อง (รองรับ PNG, JPG, WEBP, GIF, SVG)");
-        if (value.length > sc.max)
-          throw bad("ไฟล์รูปภาพใหญ่เกินไป (ไม่เกินประมาณ 300KB)");
-        return value;
-      }
-      default:
-        throw bad("ไม่รองรับ");
-    }
-  }
-
+  // ---------------------------------------------------------------- rooms validation
   function validateRoom(body, base = {}) {
     const r = { ...base };
     const bad = (field, msg) =>
@@ -773,7 +817,12 @@ function createApp(opts = {}) {
     if (!tok) return null;
     const key = sha256(tok);
     const sess = sessions.get(key);
-    if (!sess || sess.expires < Date.now()) {
+    const maxAge = Math.max(24, S().sessionHours) * 3600000;
+    if (
+      !sess ||
+      sess.expires < Date.now() ||
+      Date.now() - sess.createdAt > maxAge
+    ) {
       sessions.delete(key);
       return null;
     }
@@ -782,6 +831,21 @@ function createApp(opts = {}) {
     );
     if (!admin) {
       sessions.delete(key);
+      return null;
+    }
+    // คุกกี้ที่ถูกนำไปใช้จากเครื่องอื่น (IP ไม่ตรงกับตอนเข้าสู่ระบบ) ใช้ไม่ได้
+    const ip = clientIp(req);
+    if (sess.ip !== ip) {
+      sessions.delete(key);
+      store.addLog({
+        level: "security",
+        action: "admin.session_ip_mismatch",
+        detail: `ยกเลิกเซสชันของ ${admin.username} เพราะถูกใช้จาก IP อื่น (เดิม ${sess.ip})`,
+        actor: admin.username,
+        actorType: "admin",
+        ip,
+        ua: String(req.headers["user-agent"] || ""),
+      });
       return null;
     }
     sess.expires = Date.now() + S().sessionHours * 3600000;
@@ -794,7 +858,7 @@ function createApp(opts = {}) {
   }
 
   function cookie(value, maxAge) {
-    return `${COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
+    return `${COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secureCookie ? "; Secure" : ""}`;
   }
 
   // ---------------------------------------------------------------- routes
@@ -821,7 +885,8 @@ function createApp(opts = {}) {
     now: bkkNow(),
     serverUrls: port
       ? lanAddresses().map(
-          (ip) => `http://${ip}${port === 80 ? "" : `:${port}`}`,
+          (ip) =>
+            `${scheme}://${ip}${port === (scheme === "https" ? 443 : 80) ? "" : `:${port}`}`,
         )
       : [],
   }));
@@ -858,19 +923,26 @@ function createApp(opts = {}) {
   });
 
   route("POST", "/api/my", (ctx) => {
+    const rl = limits.my.hit(ctx.ip);
+    if (!rl.ok)
+      throw new HttpError(429, "เรียกดูบ่อยเกินไป กรุณาลองใหม่ภายหลัง");
     const tokens = Array.isArray(ctx.body.tokens)
-      ? ctx.body.tokens.filter((t) => typeof t === "string").slice(0, 200)
+      ? ctx.body.tokens
+          .filter(
+            (t) => typeof t === "string" && /^[A-Za-z0-9_-]{20,64}$/.test(t),
+          )
+          .slice(0, 60)
       : [];
-    const result = tokens.map((token) => {
-      const h = sha256(token);
-      return {
-        token,
-        bookings: store.db.bookings
-          .filter((b) => b.tokenHashes.includes(h))
-          .sort(byDateTime)
-          .map(ownerView),
-      };
-    });
+    // สแกนการจองครั้งเดียว แล้วจับคู่ด้วยแฮช
+    const byHash = new Map(tokens.map((t) => [sha256(t), []]));
+    for (const b of store.db.bookings)
+      for (const h of b.tokenHashes) byHash.get(h)?.push(b);
+    const result = tokens.map((token) => ({
+      token,
+      bookings: (byHash.get(sha256(token)) || [])
+        .sort(byDateTime)
+        .map(ownerView),
+    }));
     return { items: result };
   });
 
@@ -879,8 +951,14 @@ function createApp(opts = {}) {
     if (!rl.ok) throw new HttpError(429, "ค้นหาบ่อยเกินไป กรุณาลองใหม่ภายหลัง");
     const code = cleanStr(ctx.body.code, 30).toUpperCase();
     const phone = digits(ctx.body.phone);
+    if (!limits.lookupCode.check(code).ok)
+      throw new HttpError(
+        429,
+        "รหัสการจองนี้ถูกค้นหาด้วยเบอร์ที่ไม่ตรงหลายครั้ง ระบบพักการค้นหาไว้ 1 ชั่วโมง กรุณาติดต่อผู้ดูแลห้องประชุม",
+      );
     const b = store.db.bookings.find((x) => x.code === code);
     if (!b || !phone || digits(b.phone) !== phone) {
+      if (b) limits.lookupCode.hit(code);
       log(ctx, "booking.lookup_fail", `ค้นหาการจองไม่พบ รหัส ${code || "-"}`, {
         level: "warn",
         actor: "ผู้ใช้ทั่วไป",
@@ -996,8 +1074,16 @@ function createApp(opts = {}) {
     if (now >= toEpoch(b.date, b.end))
       throw new HttpError(400, "การประชุมนี้สิ้นสุดแล้ว");
     if (!b.checkedIn) {
-      const token = ctx.body.token;
+      const token = typeof ctx.body.token === "string" ? ctx.body.token : "";
       const owner = token && b.tokenHashes.includes(sha256(token));
+      // ไม่มีโทเคนผู้จอง: ต้องมาจากจอหน้าห้องที่ผู้ดูแลตั้งค่าไว้ (มีรหัสจอ)
+      const kiosk =
+        !owner && safeEqual(ctx.req.headers["x-kiosk-key"], store.db.kioskKey);
+      if (!owner && !kiosk)
+        throw new HttpError(
+          403,
+          "เช็คอินได้จากหน้า “การจองของฉัน” บนอุปกรณ์ที่ใช้จอง หรือจากจอหน้าห้อง",
+        );
       ctx.actor = owner ? b.organizer : "หน้าจอหน้าห้อง";
       b.checkedIn = true;
       b.checkedInAt = now;
@@ -1044,6 +1130,12 @@ function createApp(opts = {}) {
   route("GET", "/api/events", (ctx) => {
     if (sseClients.size >= 1000)
       throw new HttpError(503, "มีผู้เชื่อมต่อมากเกินไป");
+    const open = ssePerIp.get(ctx.ip) || 0;
+    if (open >= SSE_PER_IP)
+      throw new HttpError(
+        429,
+        "อุปกรณ์นี้เปิดหน้าระบบไว้หลายหน้าต่างเกินไป กรุณาปิดหน้าที่ไม่ใช้",
+      );
     const { req, res } = ctx;
     res.writeHead(200, {
       ...SECURITY_HEADERS,
@@ -1056,29 +1148,52 @@ function createApp(opts = {}) {
       `retry: 4000\nevent: hello\ndata: ${JSON.stringify({ now: bkkNow() })}\n\n`,
     );
     sseClients.add(res);
-    req.on("close", () => sseClients.delete(res));
+    ssePerIp.set(ctx.ip, open + 1);
+    req.on("close", () => {
+      sseClients.delete(res);
+      const n = (ssePerIp.get(ctx.ip) || 1) - 1;
+      if (n > 0) ssePerIp.set(ctx.ip, n);
+      else ssePerIp.delete(ctx.ip);
+    });
     return undefined;
   });
 
   // ---------- admin: session ----------
-  route("POST", "/api/admin/login", (ctx) => {
+  route("POST", "/api/admin/login", async (ctx) => {
+    const username = cleanStr(ctx.body.username, 64).toLowerCase();
     const rl = limits.login.check(ctx.ip);
-    if (!rl.ok) {
+    const rlUser = limits.loginUser.check(username);
+    if (!rl.ok || !rlUser.ok) {
+      const wait = Math.max(rl.retryAfter || 0, rlUser.retryAfter || 0);
       throw new HttpError(
         429,
-        `เข้าสู่ระบบผิดหลายครั้ง กรุณารออีก ${Math.ceil(rl.retryAfter / 60)} นาที`,
+        `เข้าสู่ระบบผิดหลายครั้ง ระบบพักการเข้าสู่ระบบไว้ชั่วคราว ลองใหม่ในอีก ${Math.ceil(wait / 60)} นาที`,
       );
     }
-    const username = cleanStr(ctx.body.username, 64).toLowerCase();
-    const password = String(ctx.body.password || "");
+    if (hashing >= MAX_HASHING)
+      throw new HttpError(
+        503,
+        "มีผู้เข้าสู่ระบบพร้อมกันหลายคน ลองใหม่อีกครั้งในไม่กี่วินาที",
+      );
+    const password = String(ctx.body.password || "").slice(0, 1024);
     const admin = store.db.admins.find(
       (a) => a.username === username && a.active !== false,
     );
-    const ok = admin
-      ? verifyPassword(password, admin.passHash)
-      : verifyPassword(password, DUMMY_HASH) && false;
+    let ok = false;
+    hashing++;
+    try {
+      ok = admin
+        ? await verifyPassword(password, admin.passHash)
+        : (await verifyPassword(password, DUMMY_HASH)) && false;
+      // บัญชีที่ยังใช้แฮชแบบเก่า (เร็วกว่า): ใช้เวลาให้เท่ากันเพื่อไม่ให้เดาชื่อผู้ใช้จากเวลาตอบได้
+      if (!ok && admin && needsRehash(admin.passHash))
+        await verifyPassword(password, DUMMY_HASH);
+    } finally {
+      hashing--;
+    }
     if (!ok) {
       limits.login.hit(ctx.ip);
+      limits.loginUser.hit(username);
       log(
         ctx,
         "admin.login_fail",
@@ -1089,9 +1204,33 @@ function createApp(opts = {}) {
           actorType: "public",
         },
       );
-      throw new HttpError(401, "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
+      throw new HttpError(
+        401,
+        "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง ตรวจสอบภาษาแป้นพิมพ์และปุ่ม Caps Lock แล้วลองอีกครั้ง",
+      );
     }
-    limits.login.reset(ctx.ip);
+    // ไม่ล้างตัวนับความผิดพลาดของ IP (กันการล้างด้วยบัญชีของตนเองแล้วเดารหัสบัญชีอื่นต่อ)
+    limits.loginUser.reset(username);
+    // อัปเกรดแฮชรหัสผ่านเก่าให้เป็นมาตรฐานปัจจุบัน
+    if (needsRehash(admin.passHash))
+      admin.passHash = await hashPassword(password);
+    // รหัสผ่านที่ตั้งไว้ก่อนมีนโยบายปัจจุบันและไม่ผ่านเกณฑ์: บังคับตั้งใหม่
+    if (
+      !admin.mustChange &&
+      passwordIssue(password, { username: admin.username, name: admin.name })
+    ) {
+      admin.mustChange = true;
+      log(
+        ctx,
+        "admin.weak_password",
+        "รหัสผ่านไม่ผ่านเกณฑ์ปัจจุบัน ระบบให้ตั้งรหัสใหม่",
+        {
+          level: "security",
+          actor: admin.username,
+          actorType: "admin",
+        },
+      );
+    }
     const token = randomToken(32);
     const hours = S().sessionHours;
     sessions.set(sha256(token), {
@@ -1120,7 +1259,7 @@ function createApp(opts = {}) {
       ctx.setCookie = cookie("", 0);
       return { ok: true };
     },
-    { auth: "staff" },
+    { auth: "staff", allowMustChange: true },
   );
 
   route(
@@ -1129,38 +1268,80 @@ function createApp(opts = {}) {
     (ctx) => ({ admin: adminPublic(ctx.admin), pendingCount: pendingCount() }),
     {
       auth: "staff",
+      allowMustChange: true,
     },
   );
+
+  // ยืนยันตัวตนด้วยรหัสผ่านของผู้ที่กำลังใช้งาน (ก่อนทำรายการสำคัญ)
+  // ผิดเกิน 5 ครั้งใน 15 นาที → ออกจากระบบทุกอุปกรณ์ของบัญชีนี้
+  async function reauth(ctx, password, field) {
+    const key = ctx.admin.id;
+    const rl = limits.password.check(key);
+    if (!rl.ok) {
+      killSessions(key);
+      throw new HttpError(
+        429,
+        "ใส่รหัสผ่านผิดหลายครั้ง ระบบออกจากระบบให้แล้ว กรุณาเข้าสู่ระบบใหม่",
+      );
+    }
+    if (hashing >= MAX_HASHING)
+      throw new HttpError(
+        503,
+        "ระบบกำลังตรวจรหัสผ่านหลายรายการ ลองใหม่อีกครั้งในไม่กี่วินาที",
+      );
+    hashing++;
+    let ok;
+    try {
+      ok = await verifyPassword(
+        String(password || "").slice(0, 1024),
+        ctx.admin.passHash,
+      );
+    } finally {
+      hashing--;
+    }
+    if (!ok) {
+      limits.password.hit(key);
+      log(ctx, "admin.reauth_fail", "ยืนยันรหัสผ่านไม่สำเร็จ", {
+        level: "security",
+      });
+      const msg = "รหัสผ่านของคุณไม่ถูกต้อง";
+      throw new HttpError(400, msg, { fields: { [field]: msg } });
+    }
+    limits.password.reset(key);
+  }
 
   route(
     "POST",
     "/api/admin/password",
-    (ctx) => {
+    async (ctx) => {
       const { current, next } = ctx.body;
-      if (!verifyPassword(String(current || ""), ctx.admin.passHash)) {
-        throw new HttpError(400, "รหัสผ่านปัจจุบันไม่ถูกต้อง", {
-          fields: { current: "รหัสผ่านปัจจุบันไม่ถูกต้อง" },
+      await reauth(ctx, current, "current");
+      const issue =
+        typeof next === "string"
+          ? passwordIssue(next, {
+              username: ctx.admin.username,
+              name: ctx.admin.name,
+            })
+          : "กรุณาตั้งรหัสผ่านใหม่";
+      if (issue)
+        throw new HttpError(400, `ตั้งรหัสผ่านนี้ไม่ได้: ${issue}`, {
+          fields: { next: issue },
         });
-      }
-      if (typeof next !== "string" || next.length < 8) {
-        throw new HttpError(400, "รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร", {
-          fields: { next: "อย่างน้อย 8 ตัวอักษร" },
-        });
-      }
       if (next === current)
         throw new HttpError(400, "รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม", {
           fields: { next: "ต้องไม่ซ้ำรหัสเดิม" },
         });
-      ctx.admin.passHash = hashPassword(next);
+      ctx.admin.passHash = await hashPassword(next);
       ctx.admin.mustChange = false;
       killSessions(ctx.admin.id, ctx.session.key);
       store.saveDb();
+      store.clearInitialPassword(ctx.admin.username);
       log(ctx, "admin.password", "เปลี่ยนรหัสผ่านของตนเอง", {
         level: "security",
       });
       return { ok: true };
     },
-    { auth: "staff" },
+    { auth: "staff", allowMustChange: true },
   );
 
   // ---------- admin: dashboard ----------
@@ -1505,7 +1686,7 @@ function createApp(opts = {}) {
         cancel: "cancelled",
         pending: "pending",
       };
-      if (!map[action] && action !== "delete")
+      if (!has(map, action) && action !== "delete")
         throw new HttpError(400, "คำสั่งไม่ถูกต้อง");
       if (action === "delete" && ctx.admin.role !== "admin")
         throw new HttpError(403, "เฉพาะผู้ดูแลระบบเท่านั้นที่ลบข้อมูลได้");
@@ -1588,18 +1769,8 @@ function createApp(opts = {}) {
           changed.push(k);
         }
       }
-      if (toMin(next.openTime) >= toMin(next.closeTime)) {
-        throw new HttpError(400, "เวลาเปิดต้องก่อนเวลาปิด", {
-          field: "closeTime",
-        });
-      }
-      if (next.minDurationMinutes > next.maxDurationMinutes) {
-        throw new HttpError(
-          400,
-          "ระยะเวลาขั้นต่ำต้องไม่มากกว่าระยะเวลาสูงสุด",
-          { field: "minDurationMinutes" },
-        );
-      }
+      const issue = settingsIssue(next);
+      if (issue) throw issue;
       if (!changed.length) return { settings: S(), changed };
       store.db.settings = next;
       store.saveDb();
@@ -1819,7 +1990,7 @@ function createApp(opts = {}) {
   route(
     "POST",
     "/api/admin/users",
-    (ctx) => {
+    async (ctx) => {
       const username = cleanStr(ctx.body.username, 32).toLowerCase();
       const name = cleanStr(ctx.body.name, 80);
       const role = ctx.body.role === "admin" ? "admin" : "staff";
@@ -1830,14 +2001,16 @@ function createApp(opts = {}) {
       else if (store.db.admins.some((a) => a.username === username))
         fields.username = "ชื่อผู้ใช้นี้มีอยู่แล้ว";
       if (!name) fields.name = "กรุณาระบุชื่อ";
-      if (password.length < 8) fields.password = "อย่างน้อย 8 ตัวอักษร";
+      const pwIssue = passwordIssue(password, { username, name });
+      if (pwIssue) fields.password = pwIssue;
       throwFieldErrors(fields);
+      await reauth(ctx, ctx.body.confirmPassword, "confirmPassword");
       const a = {
         id: randomId(),
         username,
         name,
         role,
-        passHash: hashPassword(password),
+        passHash: await hashPassword(password),
         mustChange: true,
         active: true,
         createdAt: Date.now(),
@@ -1859,11 +2032,23 @@ function createApp(opts = {}) {
   route(
     "PUT",
     "/api/admin/users/:id",
-    (ctx) => {
+    async (ctx) => {
       const a = store.db.admins.find((x) => x.id === ctx.params.id);
       if (!a) throw new HttpError(404, "ไม่พบผู้ใช้");
       const self = a.id === ctx.admin.id;
       const changes = [];
+      if (self && ctx.body.password)
+        throw new HttpError(
+          400,
+          "เปลี่ยนรหัสผ่านของตนเองได้ที่เมนู “เปลี่ยนรหัสผ่าน” (ต้องใส่รหัสผ่านปัจจุบัน)",
+          { fields: { password: "ใช้เมนูเปลี่ยนรหัสผ่านแทน" } },
+        );
+      const roleChange =
+        has(ctx.body, "role") &&
+        (ctx.body.role === "admin" ? "admin" : "staff") !== a.role;
+      // เปลี่ยนสิทธิ์หรือตั้งรหัสผ่านให้ผู้อื่น ต้องยืนยันรหัสผ่านของผู้ดูแลก่อน
+      if (roleChange || ctx.body.password)
+        await reauth(ctx, ctx.body.confirmPassword, "confirmPassword");
       if (has(ctx.body, "name")) {
         const name = cleanStr(ctx.body.name, 80);
         if (!name)
@@ -1900,13 +2085,17 @@ function createApp(opts = {}) {
       }
       if (ctx.body.password) {
         const pw = String(ctx.body.password);
-        if (pw.length < 8)
-          throw new HttpError(400, "รหัสผ่านอย่างน้อย 8 ตัวอักษร", {
-            fields: { password: "อย่างน้อย 8 ตัวอักษร" },
+        const pwIssue = passwordIssue(pw, {
+          username: a.username,
+          name: a.name,
+        });
+        if (pwIssue)
+          throw new HttpError(400, `ตั้งรหัสผ่านนี้ไม่ได้: ${pwIssue}`, {
+            fields: { password: pwIssue },
           });
-        a.passHash = hashPassword(pw);
-        a.mustChange = !self;
-        killSessions(a.id, self ? ctx.session.key : undefined);
+        a.passHash = await hashPassword(pw);
+        a.mustChange = true;
+        killSessions(a.id);
         changes.push("ตั้งรหัสผ่านใหม่");
       }
       store.saveDb();
@@ -2055,6 +2244,13 @@ function createApp(opts = {}) {
     (ctx) => {
       const before = ctx.query.get("before");
       if (!isDate(before)) throw new HttpError(400, "กรุณาระบุวันที่");
+      // เก็บบันทึก 30 วันล่าสุดไว้เสมอ เพื่อให้ตรวจสอบย้อนหลังได้แม้บัญชีผู้ดูแลถูกใช้โดยมิชอบ
+      const latest = addDays(bkkNow().date, -30);
+      if (before > latest)
+        throw new HttpError(
+          400,
+          `ลบได้เฉพาะบันทึกที่เก่ากว่า 30 วัน (ก่อนวันที่ ${thaiDate(latest)} หรือเก่ากว่า)`,
+        );
       const cutoff = toEpoch(before, "00:00");
       const n = store.logs.length;
       store.logs = store.logs.filter((l) => l.ts >= cutoff);
@@ -2081,7 +2277,7 @@ function createApp(opts = {}) {
         app: "bangrak-room-booking",
         version: 1,
         exportedAt: new Date().toISOString(),
-        db: store.db,
+        db: exportDb(),
         ...(withLogs ? { logs: store.logs } : {}),
       };
       log(
@@ -2107,6 +2303,19 @@ function createApp(opts = {}) {
     { auth: "admin" },
   );
 
+  // ไฟล์สำรองที่ดาวน์โหลดออกไปไม่มีแฮชรหัสผ่านและรหัสจอหน้าห้อง (ไฟล์อาจถูกคัดลอกไปที่อื่น)
+  function exportDb(db = store.db) {
+    // eslint-disable-next-line no-unused-vars
+    const { kioskKey, ...rest } = db;
+    return {
+      ...rest,
+      admins: (db.admins || []).map(
+        // eslint-disable-next-line no-unused-vars
+        ({ passHash, ...a }) => a,
+      ),
+    };
+  }
+
   route("GET", "/api/admin/backups", () => ({ backups: store.listBackups() }), {
     auth: "admin",
   });
@@ -2123,10 +2332,20 @@ function createApp(opts = {}) {
         `ดาวน์โหลดไฟล์สำรองอัตโนมัติ ${ctx.params.name}`,
         { level: "security" },
       );
+      let body;
+      try {
+        body = JSON.stringify(
+          exportDb(JSON.parse(fs.readFileSync(file, "utf8"))),
+          null,
+          1,
+        );
+      } catch {
+        throw new HttpError(500, "ไฟล์สำรองนี้เสียหาย อ่านไม่ได้");
+      }
       sendFile(
         ctx.res,
         200,
-        fs.readFileSync(file),
+        body,
         "application/json; charset=utf-8",
         ctx.params.name,
       );
@@ -2135,11 +2354,95 @@ function createApp(opts = {}) {
     { auth: "admin" },
   );
 
+  // ข้อมูลจากไฟล์สำรอง: ทุกค่าต้องผ่านกฎเดียวกับการบันทึกปกติ
+  function sanitizeRestore(data) {
+    const { settings, rejected } = sanitizeSettings(data.settings);
+    const roomIds = new Set();
+    const rooms = [];
+    for (const raw of data.rooms.slice(0, 200)) {
+      if (!raw || typeof raw !== "object") continue;
+      const id = cleanStr(raw.id, 64);
+      if (!/^[a-z0-9_-]{1,64}$/i.test(id) || roomIds.has(id)) continue;
+      try {
+        const r = validateRoom(raw, {
+          equipment: [],
+          active: true,
+          approval: "inherit",
+          description: "",
+          floor: "",
+          closedMessage: "",
+        });
+        r.id = id;
+        r.archived = raw.archived === true;
+        r.order = Number.isFinite(raw.order) ? raw.order : rooms.length + 1;
+        roomIds.add(id);
+        rooms.push(r);
+      } catch {
+        /* ห้องที่ข้อมูลไม่ถูกต้องจะถูกข้าม */
+      }
+    }
+    const bookingIds = new Set();
+    const bookings = [];
+    for (const raw of data.bookings.slice(0, 200000)) {
+      const b = sanitizeBooking(raw);
+      if (!b || bookingIds.has(b.id)) continue;
+      bookingIds.add(b.id);
+      bookings.push(b);
+    }
+    const holidays = Array.isArray(data.holidays)
+      ? data.holidays
+          .filter((h) => h && isDate(h.date))
+          .slice(0, 1000)
+          .map((h) => ({
+            date: h.date,
+            name: cleanStr(h.name, 100) || "วันหยุด",
+          }))
+      : [];
+    const counters = {};
+    if (data.counters && typeof data.counters === "object")
+      for (const [k, v] of Object.entries(data.counters))
+        if (/^\d{4}$/.test(k) && Number.isInteger(v) && v >= 0) counters[k] = v;
+    return {
+      db: {
+        ...store.db,
+        settings,
+        rooms,
+        bookings,
+        departments: cleanList(data.departments, 200, 120),
+        holidays,
+        counters,
+      },
+      rejected,
+      skipped: {
+        rooms: data.rooms.length - rooms.length,
+        bookings: data.bookings.length - bookings.length,
+      },
+    };
+  }
+
+  const LOG_LEVELS = new Set(["info", "warn", "security", "error"]);
+  function sanitizeLog(l) {
+    if (!l || typeof l !== "object" || !Number.isFinite(l.ts)) return null;
+    return {
+      ts: l.ts,
+      level: LOG_LEVELS.has(l.level) ? l.level : "info",
+      action: cleanStr(l.action, 60),
+      detail: cleanStr(l.detail, 2000),
+      actor: cleanStr(l.actor, 100),
+      actorType: cleanStr(l.actorType, 20),
+      ip: cleanStr(l.ip, 64),
+      ua: cleanStr(l.ua, 300),
+      ref: cleanStr(l.ref, 40),
+      imported: true,
+    };
+  }
+
   route(
     "POST",
     "/api/admin/restore",
-    (ctx) => {
+    async (ctx) => {
       const body = ctx.body;
+      await reauth(ctx, body.confirmPassword, "confirmPassword");
       const data = body.db && typeof body.db === "object" ? body.db : body;
       const valid =
         data &&
@@ -2151,47 +2454,84 @@ function createApp(opts = {}) {
       if (!valid)
         throw new HttpError(
           400,
-          "ไฟล์สำรองข้อมูลไม่ถูกต้อง หรือไม่ใช่ไฟล์ของระบบนี้",
+          "ไฟล์นี้ไม่ใช่ไฟล์สำรองของระบบจองห้องประชุม เลือกไฟล์ .json ที่ดาวน์โหลดจากเมนูสำรองข้อมูล",
+        );
+      const clean = sanitizeRestore(data);
+      if (!clean.db.rooms.length)
+        throw new HttpError(
+          400,
+          "ไฟล์สำรองนี้ไม่มีข้อมูลห้องที่ใช้ได้ จึงไม่ได้กู้คืน",
         );
       const snap = store.snapshot("prerestore");
-      const keepAdmins =
-        !Array.isArray(data.admins) ||
-        !data.admins.some((a) => a.role === "admin" && a.passHash);
-      const currentAdmins = store.db.admins;
-      store.replaceDb(data);
-      if (keepAdmins) store.db.admins = currentAdmins;
+      // บัญชีผู้ใช้และรหัสจอหน้าห้องคงเดิมเสมอ (ไฟล์สำรองอาจถูกแก้ไขระหว่างทาง)
+      store.replaceDb(clean.db);
+      let importedLogs = 0;
       if (Array.isArray(body.logs) && body.restoreLogs) {
-        store.logs = body.logs
-          .filter((l) => l && typeof l.ts === "number")
+        const known = new Set(
+          store.logs.map((l) => `${l.ts}|${l.action}|${l.detail}`),
+        );
+        const add = body.logs
+          .slice(-50000)
+          .map(sanitizeLog)
+          .filter((l) => l && !known.has(`${l.ts}|${l.action}|${l.detail}`));
+        importedLogs = add.length;
+        for (const l of add) l.id = ++store.logSeq;
+        store.logs = [...store.logs, ...add]
+          .sort((x, y) => x.ts - y.ts)
           .slice(-50000);
-        store.logSeq = store.logs.reduce((m, l) => Math.max(m, l.id || 0), 0);
         store.flushLogs();
       }
       store.flushDb();
       log(
         ctx,
         "system.restore",
-        `กู้คืนข้อมูลจากไฟล์สำรอง (การจอง ${store.db.bookings.length} รายการ, ห้อง ${store.db.rooms.length} ห้อง) — สำรองข้อมูลเดิมไว้ที่ ${snap}`,
-        {
-          level: "security",
-        },
+        `กู้คืนข้อมูลจากไฟล์สำรอง (การจอง ${store.db.bookings.length} รายการ, ห้อง ${store.db.rooms.length} ห้อง` +
+          `${importedLogs ? `, นำเข้าบันทึก ${importedLogs} รายการ` : ""}` +
+          `${clean.skipped.bookings || clean.skipped.rooms ? `, ข้ามข้อมูลที่ไม่ถูกต้อง: การจอง ${clean.skipped.bookings} ห้อง ${clean.skipped.rooms}` : ""}` +
+          `${clean.rejected.length ? `, ใช้ค่าเริ่มต้นแทน: ${clean.rejected.join(", ")}` : ""}) — สำรองข้อมูลเดิมไว้ที่ ${snap}`,
+        { level: "security" },
       );
       broadcast("config", { changed: ["all"] });
       broadcast("bookings", {
         action: "restore",
         dates: [],
         rooms: [],
-        codes: [],
         count: 0,
       });
       return {
         ok: true,
         bookings: store.db.bookings.length,
         rooms: store.db.rooms.length,
+        skipped: clean.skipped,
+        rejectedSettings: clean.rejected,
         snapshot: snap,
       };
     },
     { auth: "admin", limit: 40 * 1024 * 1024 },
+  );
+
+  // รหัสจอหน้าห้อง: ผู้ดูแลใช้สร้างลิงก์สำหรับแท็บเล็ตหน้าห้อง (ให้เช็คอินได้)
+  route("GET", "/api/admin/kiosk-key", () => ({ key: store.db.kioskKey }), {
+    auth: "admin",
+  });
+  route(
+    "POST",
+    "/api/admin/kiosk-key",
+    async (ctx) => {
+      await reauth(ctx, ctx.body.confirmPassword, "confirmPassword");
+      store.db.kioskKey = randomToken(24);
+      store.saveDb();
+      log(
+        ctx,
+        "system.kiosk_key",
+        "สร้างรหัสจอหน้าห้องใหม่ (จอเดิมต้องเปิดลิงก์ใหม่)",
+        {
+          level: "security",
+        },
+      );
+      return { key: store.db.kioskKey };
+    },
+    { auth: "admin" },
   );
 
   route(
@@ -2200,7 +2540,8 @@ function createApp(opts = {}) {
     () => ({
       port,
       lanUrls: lanAddresses().map(
-        (ip) => `http://${ip}${port === 80 ? "" : `:${port}`}`,
+        (ip) =>
+          `${scheme}://${ip}${port === (scheme === "https" ? 443 : 80) ? "" : `:${port}`}`,
       ),
       hostname: os.hostname(),
       platform: `${os.type()} ${os.release()} (${os.arch()})`,
@@ -2267,20 +2608,39 @@ function createApp(opts = {}) {
     };
     if (method !== "GET") {
       // ป้องกัน CSRF: เบราว์เซอร์ข้ามโดเมนไม่สามารถส่ง header นี้ได้โดยไม่ผ่าน CORS
-      if (req.headers["x-requested-with"] !== "br")
+      if (req.headers["x-requested-with"] !== "br") {
+        req.tooLarge = true; // ไม่อ่านข้อมูลที่เหลือ ปิดการเชื่อมต่อหลังตอบ
         throw new HttpError(403, "คำขอไม่ถูกต้อง");
-      ctx.body = await readJson(req, r.opts.limit || 256 * 1024);
+      }
     }
+    // ตรวจสิทธิ์ก่อนอ่านข้อมูลที่ส่งมา: ผู้ไม่ได้เข้าสู่ระบบส่งข้อมูลขนาดใหญ่ไม่ได้
     if (r.opts.auth) {
       const session = getSession(req);
-      if (!session) throw new HttpError(401, "กรุณาเข้าสู่ระบบ");
-      if (r.opts.auth === "admin" && session.admin.role !== "admin")
+      if (!session) {
+        req.tooLarge = true;
+        throw new HttpError(
+          401,
+          "กรุณาเข้าสู่ระบบอีกครั้ง (เซสชันหมดอายุหรือออกจากระบบแล้ว)",
+        );
+      }
+      if (r.opts.auth === "admin" && session.admin.role !== "admin") {
+        req.tooLarge = true;
         throw new HttpError(403, "สิทธิ์ของคุณไม่เพียงพอสำหรับเมนูนี้");
+      }
+      // บัญชีที่ต้องเปลี่ยนรหัสผ่าน ใช้ได้เฉพาะการเปลี่ยนรหัสผ่าน/ออกจากระบบ
+      if (session.admin.mustChange && !r.opts.allowMustChange) {
+        req.tooLarge = true;
+        throw new HttpError(403, "กรุณาเปลี่ยนรหัสผ่านก่อนเริ่มใช้งาน", {
+          mustChange: true,
+        });
+      }
       ctx.session = session;
       ctx.admin = session.admin;
       ctx.actor = session.admin.username;
       ctx.actorType = "admin";
     }
+    if (method !== "GET")
+      ctx.body = await readJson(req, r.opts.limit || 256 * 1024);
     const result = await r.handler(ctx);
     if (result !== undefined)
       sendJson(
@@ -2300,6 +2660,24 @@ function createApp(opts = {}) {
     "/my": "/my.html",
   };
 
+  // หน้าไม่พบ: ตอบ 404 พร้อมหน้าแนะนำทางกลับ (ไม่พาไปหน้าแรกเงียบ ๆ)
+  let notFoundHtml = null;
+  function sendNotFound(res) {
+    if (notFoundHtml === null) {
+      try {
+        notFoundHtml = fs.readFileSync(path.join(publicDir, "404.html"));
+      } catch {
+        notFoundHtml = Buffer.from("Not found");
+      }
+    }
+    res.writeHead(404, {
+      ...SECURITY_HEADERS,
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-cache",
+    });
+    res.end(notFoundHtml);
+  }
+
   async function handle(req, res) {
     let url;
     try {
@@ -2309,6 +2687,25 @@ function createApp(opts = {}) {
       return;
     }
     try {
+      if (!hostAllowed(req.headers.host)) {
+        const h = hostName(req.headers.host) || "(ว่าง)";
+        if (!warnedHosts.has(h) && warnedHosts.size < 50) {
+          warnedHosts.add(h);
+          console.warn(
+            `[security] ปฏิเสธคำขอที่ใช้ชื่อโฮสต์ "${h}" — หากเป็นชื่อที่หน่วยงานตั้งไว้เอง ให้เพิ่มด้วย --allowed-hosts=${h}`,
+          );
+          store.addLog({
+            level: "security",
+            action: "system.host_block",
+            detail: `ปฏิเสธคำขอที่ใช้ชื่อโฮสต์ไม่รู้จัก: ${h.slice(0, 100)}`,
+            ip: clientIp(req),
+          });
+        }
+        throw new HttpError(
+          421,
+          "ชื่อโฮสต์นี้ไม่ได้รับอนุญาต กรุณาเปิดผ่านที่อยู่ IP ของเครื่องแม่ข่าย",
+        );
+      }
       if (url.pathname.startsWith("/api/")) {
         await handleApi(req, res, url);
         return;
@@ -2317,20 +2714,30 @@ function createApp(opts = {}) {
         throw new HttpError(405, "Method not allowed");
       const short = SHORT_PATHS[url.pathname.replace(/\/+$/, "")];
       if (short) {
-        res.writeHead(302, { Location: short + url.search });
-        res.end();
+        redirect(res, short + url.search);
         return;
       }
-      if (serveStatic(req, res, url.pathname === "/" ? "/index.html" : url.pathname)) return;
-      res.writeHead(302, { Location: "/" });
-      res.end();
+      if (
+        serveStatic(
+          req,
+          res,
+          url.pathname === "/" ? "/index.html" : url.pathname,
+        )
+      )
+        return;
+      sendNotFound(res);
     } catch (err) {
       if (res.headersSent) {
         res.end();
         return;
       }
       if (err instanceof HttpError) {
-        sendJson(res, err.status, { error: err.message, ...(err.data || {}) });
+        sendJson(
+          res,
+          err.status,
+          { error: err.message, ...(err.data || {}) },
+          req.tooLarge ? { Connection: "close" } : {},
+        );
       } else {
         console.error("[error]", err);
         store.addLog({
@@ -2404,6 +2811,7 @@ function createApp(opts = {}) {
 
   function start(info = {}) {
     if (info.port) port = info.port;
+    if (info.scheme) scheme = info.scheme;
     store.addLog({
       action: "system.start",
       detail: `เริ่มระบบ (พอร์ต ${port}, Node ${process.version})`,
@@ -2447,6 +2855,9 @@ function createApp(opts = {}) {
     autoRelease,
     get firstRun() {
       return store.firstRun;
+    },
+    get initialPassword() {
+      return store.initialPassword;
     },
   };
 }

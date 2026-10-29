@@ -20,8 +20,15 @@
       var root = document.documentElement;
       root.setAttribute("data-theme", dark ? "dark" : "light");
       if (cfg.themeColor) root.setAttribute("data-brand", cfg.themeColor);
-      var motion = get("br.motion") || cfg.motionLevel;
-      if (motion) root.setAttribute("data-motion", motion);
+      var motion = get("br.motion") || cfg.motionLevel || "full";
+      // ระบบปฏิบัติการขอลดภาพเคลื่อนไหว → ใช้แบบเรียบง่าย (ถ้าผู้ใช้ไม่ได้เลือกเอง)
+      if (
+        !get("br.motion") &&
+        motion === "full" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      )
+        motion = "reduced";
+      root.setAttribute("data-motion", motion);
     } catch (e) {
       /* ignore */
     }
@@ -513,8 +520,35 @@
       out += renderVal(vals[i]) + strings[i + 1];
     return new Raw(out);
   }
+  // วาดเนื้อหาใหม่โดยไม่ทำโฟกัสคีย์บอร์ดหาย: ถ้าองค์ประกอบที่โฟกัสอยู่ถูกแทนที่
+  // จะโฟกัสตัวใหม่ที่มี id หรือ data-* เดียวกัน (เช่น ช่องเวลา ชิปวันที่ ปุ่มตัวเลือก)
+  const FOCUS_KEYS = [
+    "m",
+    "dur",
+    "preset",
+    "date",
+    "value",
+    "room",
+    "id",
+    "pg",
+    "act",
+    "equip",
+    "step-btn",
+  ];
+  function focusKey(a) {
+    if (a.id) return `#${CSS.escape(a.id)}`;
+    for (const k of FOCUS_KEYS) {
+      const v = a.getAttribute(`data-${k}`);
+      if (v !== null)
+        return `${a.tagName.toLowerCase()}[data-${k}="${CSS.escape(v)}"]`;
+    }
+    return null;
+  }
   function setHTML(el, tpl) {
+    const a = document.activeElement;
+    const key = a && a !== document.body && el.contains(a) ? focusKey(a) : null;
     el.innerHTML = renderVal(tpl);
+    if (key) el.querySelector(key)?.focus({ preventScroll: true });
     return el;
   }
   function icon(name, cls = "") {
@@ -574,7 +608,8 @@
       });
     } catch {
       throw new ApiError(0, {
-        error: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบการเชื่อมต่อ Wi-Fi",
+        error:
+          "เชื่อมต่อระบบไม่ได้ ตรวจสอบว่าเชื่อมต่อ Wi-Fi ของสำนักงานอยู่ แล้วลองอีกครั้ง",
       });
     }
     let data = null;
@@ -751,14 +786,14 @@
   const mqDark = matchMedia("(prefers-color-scheme: dark)");
   const mqReduce = matchMedia("(prefers-reduced-motion: reduce)");
   let appearanceSettings = {
-    themeColor: "green",
+    themeColor: "blue",
     defaultThemeMode: "auto",
     motionLevel: "full",
   };
   function applyAppearance(settings = appearanceSettings) {
     appearanceSettings = settings;
     const root = document.documentElement;
-    root.dataset.brand = settings.themeColor || "green";
+    root.dataset.brand = settings.themeColor || "blue";
     const mode = store.get("br.theme") || settings.defaultThemeMode || "auto";
     root.dataset.theme =
       mode === "dark" || (mode === "auto" && mqDark.matches) ? "dark" : "light";
@@ -769,7 +804,7 @@
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta)
       meta.content =
-        getComputedStyle(root).getPropertyValue("--bg").trim() || "#f3f6f4";
+        getComputedStyle(root).getPropertyValue("--bg").trim() || "#f5f5f7";
   }
   mqDark.addEventListener?.("change", () => applyAppearance());
   mqReduce.addEventListener?.("change", () => applyAppearance());
@@ -837,7 +872,7 @@
           ".btn, .chip, .ripple-host, .seg button, .nav-link, .tab-link",
         );
         if (!el || el.disabled || el.classList.contains("is-disabled")) return;
-        if (motionLevel() !== "off") spawnRipple(el, e);
+        if (motionLevel() === "full") spawnRipple(el, e);
         haptic();
         if (fx.sound) tick();
       },
@@ -993,6 +1028,30 @@
     );
   }
 
+  // ส่วนที่อยู่ใต้ขอบจอค่อย ๆ ปรากฏเมื่อเลื่อนมาถึง (ส่วนที่เห็นอยู่แล้วไม่ถูกซ่อน)
+  function initReveal(root, selector = ".section") {
+    if (motionLevel() === "off" || !("IntersectionObserver" in window)) return;
+    const items = [...root.querySelectorAll(selector)].filter(
+      (x) => x.getBoundingClientRect().top > innerHeight * 0.92,
+    );
+    if (!items.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const en of entries)
+          if (en.isIntersecting) {
+            en.target.classList.add("in");
+            io.unobserve(en.target);
+          }
+      },
+      { rootMargin: "0px 0px -8% 0px" },
+    );
+    items.forEach((x) => {
+      x.classList.add("reveal-item");
+      io.observe(x);
+    });
+    root.classList.add("reveal-ready");
+  }
+
   function countUp(el, to, duration = 900) {
     const from = 0;
     if (motionLevel() === "off" || !Number.isFinite(to)) {
@@ -1020,7 +1079,7 @@
       seg.prepend(ind);
     }
     const place = () => {
-      const sel = seg.querySelector('[aria-selected="true"]');
+      const sel = seg.querySelector('[aria-pressed="true"]');
       if (!sel) {
         ind.style.width = "0px";
         return;
@@ -1035,10 +1094,7 @@
   }
   function segSelect(seg, value) {
     $$("button", seg).forEach((b) =>
-      b.setAttribute(
-        "aria-selected",
-        String(b.dataset.value === String(value)),
-      ),
+      b.setAttribute("aria-pressed", String(b.dataset.value === String(value))),
     );
     initSeg(seg);
   }
@@ -1059,12 +1115,28 @@
     warning: "alert",
     danger: "x-circle",
   };
+  // ข้อความแจ้งเตือน: ทั่วไปหายเองและหยุดนับเวลาเมื่อชี้/โฟกัส ส่วนข้อผิดพลาดค้างไว้จนกดปิด
+  // โปรแกรมอ่านหน้าจออ่านผ่านพื้นที่ประกาศที่มีอยู่ในหน้าตั้งแต่แรก (#toasts / #sr-alert)
   function toast(message, type = "info", { title = "", duration = 3800 } = {}) {
     const root = rootEl("toasts");
-    root.setAttribute("aria-live", "polite");
+    if (!root.hasAttribute("aria-live")) {
+      root.setAttribute("role", "status");
+      root.setAttribute("aria-live", "polite");
+    }
+    const sticky = type === "danger";
+    if (sticky) {
+      const sr = rootEl("sr-alert");
+      sr.className = "sr-only";
+      sr.setAttribute("role", "alert");
+      sr.textContent = "";
+      setTimeout(
+        () => (sr.textContent = `${title ? `${title} ` : ""}${message}`),
+        50,
+      );
+    }
     const el = document.createElement("div");
     el.className = `toast toast-${type}`;
-    el.setAttribute("role", type === "danger" ? "alert" : "status");
+    if (sticky) el.setAttribute("aria-hidden", "true");
     setHTML(
       el,
       html`<span class="toast-icon">${icon(TOAST_ICON[type] || "info")}</span>
@@ -1074,7 +1146,12 @@
         <button class="toast-x" aria-label="ปิดข้อความ">
           ${icon("x", "i-sm")}
         </button>
-        <i class="toast-bar" style="animation-duration:${duration}ms"></i>`,
+        ${sticky
+          ? ""
+          : html`<i
+              class="toast-bar"
+              style="animation-duration:${duration}ms"
+            ></i>`}`,
     );
     root.appendChild(el);
     while (root.children.length > 4) root.firstElementChild.remove();
@@ -1089,7 +1166,26 @@
       setTimeout(() => el.remove(), 320);
     };
     el.querySelector(".toast-x").addEventListener("click", close);
-    timer = setTimeout(close, duration);
+    if (!sticky) {
+      let left = duration;
+      let started = Date.now();
+      const pause = () => {
+        clearTimeout(timer);
+        left -= Date.now() - started;
+        el.classList.add("paused");
+      };
+      const resume = () => {
+        started = Date.now();
+        clearTimeout(timer);
+        timer = setTimeout(close, Math.max(1200, left));
+        el.classList.remove("paused");
+      };
+      el.addEventListener("pointerenter", pause);
+      el.addEventListener("pointerleave", resume);
+      el.addEventListener("focusin", pause);
+      el.addEventListener("focusout", resume);
+      timer = setTimeout(close, duration);
+    }
     if (type === "danger" || type === "warning")
       haptic(type === "danger" ? 40 : 20);
     return close;
@@ -1107,6 +1203,23 @@
     }
   });
 
+  // ระหว่างเปิดหน้าต่าง: ส่วนอื่นของหน้ากด/โฟกัสไม่ได้ และโปรแกรมอ่านหน้าจอไม่อ่าน
+  const inertSet = new Set();
+  function setInert(on) {
+    if (on) {
+      for (const elx of document.body.children) {
+        if (["modal-root", "toasts", "sr-alert"].includes(elx.id) || elx.inert)
+          continue;
+        if (elx.tagName === "SCRIPT") continue;
+        elx.inert = true;
+        inertSet.add(elx);
+      }
+    } else {
+      inertSet.forEach((elx) => (elx.inert = false));
+      inertSet.clear();
+    }
+  }
+
   function openModal({
     title = "",
     body = "",
@@ -1119,6 +1232,7 @@
     const root = rootEl("modal-root");
     const wrap = document.createElement("div");
     wrap.className = "modal-wrap";
+    const titleId = `mt-${Math.random().toString(36).slice(2, 9)}`;
     setHTML(
       wrap,
       html`<div class="modal-backdrop"></div>
@@ -1126,11 +1240,14 @@
           class="modal modal-${size} ${className}"
           role="dialog"
           aria-modal="true"
-          aria-label="${title}"
+          tabindex="-1"
+          ${title
+            ? raw(`aria-labelledby="${titleId}"`)
+            : raw('aria-label="หน้าต่าง"')}
         >
           <div class="sheet-handle" aria-hidden="true"></div>
           <header class="modal-head">
-            <h3>${title}</h3>
+            <h3 id="${titleId}">${title}</h3>
             <button
               class="btn btn-ghost btn-icon btn-sm modal-x"
               aria-label="ปิด"
@@ -1153,6 +1270,7 @@
     root.appendChild(wrap);
     document.body.classList.add("modal-open");
     const prevFocus = document.activeElement;
+    setInert(true);
 
     let resolveFn;
     const done = new Promise((r) => {
@@ -1171,6 +1289,8 @@
         modalStack.splice(modalStack.indexOf(ctrl), 1);
         wrap.classList.add("closing");
         wrap.classList.remove("open");
+        wrap.inert = true;
+        if (!modalStack.length) setInert(false);
         setTimeout(
           () => {
             wrap.remove();
@@ -1179,8 +1299,18 @@
           },
           motionLevel() === "off" ? 0 : 260,
         );
+        // คืนโฟกัสให้ปุ่มที่เปิด หรือหัวข้อหน้าเมื่อปุ่มนั้นหายไปแล้ว
         try {
-          prevFocus?.focus?.({ preventScroll: true });
+          const back =
+            prevFocus && prevFocus.isConnected && prevFocus !== document.body
+              ? prevFocus
+              : document.querySelector("main h1, #view h1, h1");
+          if (
+            back &&
+            !back.matches("a, button, input, select, textarea, [tabindex]")
+          )
+            back.setAttribute("tabindex", "-1");
+          back?.focus?.({ preventScroll: true });
         } catch {
           /* ignore */
         }
@@ -1198,13 +1328,41 @@
     wrap
       .querySelector(".modal-backdrop")
       .addEventListener("click", () => dismissible && ctrl.close(null));
+    // โฟกัสแรก: เมาส์/คีย์บอร์ด → ช่องแรกหรือปุ่มที่ปลอดภัย (ยกเลิก) ; จอสัมผัส → ตัวหน้าต่าง (ไม่ให้แป้นพิมพ์เด้ง)
     setTimeout(() => {
-      const f = modal.querySelector(
-        "[autofocus], .modal-body input:not([type=hidden]), .modal-body textarea, .modal-foot .btn-primary",
-      );
-      if (f && matchMedia("(pointer: fine)").matches)
-        f.focus({ preventScroll: true });
+      if (ctrl.closed) return;
+      const f = matchMedia("(pointer: fine)").matches
+        ? modal.querySelector(
+            "[autofocus], .modal-body input:not([type=hidden]):not([disabled]), .modal-body select, .modal-body textarea, [data-act=cancel], [data-x], .modal-foot .btn, .modal-x",
+          )
+        : null;
+      (f || modal).focus({ preventScroll: true });
     }, 60);
+    // วนโฟกัสอยู่ในหน้าต่าง (Tab / Shift+Tab)
+    wrap.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      const items = [
+        ...modal.querySelectorAll(
+          'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((x) => !x.closest("[hidden]") && x.offsetParent !== null);
+      if (!items.length) {
+        e.preventDefault();
+        return;
+      }
+      const firstEl = items[0];
+      const lastEl = items[items.length - 1];
+      if (
+        e.shiftKey &&
+        (document.activeElement === firstEl || document.activeElement === modal)
+      ) {
+        e.preventDefault();
+        lastEl.focus();
+      } else if (!e.shiftKey && document.activeElement === lastEl) {
+        e.preventDefault();
+        firstEl.focus();
+      }
+    });
 
     // ลากลงเพื่อปิด (มือถือ)
     const handle = wrap.querySelector(".sheet-handle");
@@ -1249,9 +1407,10 @@
     title = "ยืนยันการทำรายการ",
     message = "",
     confirmText = "ยืนยัน",
-    cancelText = "ยกเลิก",
+    cancelText = "กลับ",
     danger = false,
     input = null,
+    password = null,
     choices = null,
     iconName = danger ? "alert" : "info",
   } = {}) {
@@ -1292,6 +1451,20 @@
                 placeholder="${input.placeholder || ""}"
               ></textarea>
             </label>`
+          : ""}
+        ${password
+          ? html`<label class="field"
+              ><span>${password.label || "รหัสผ่านของคุณ"}</span
+              ><input
+                class="input"
+                type="password"
+                name="cpw"
+                autocomplete="current-password"
+                required
+              /><small class="field-hint"
+                >${password.hint || "ยืนยันตัวตนก่อนทำรายการสำคัญ"}</small
+              ></label
+            >`
           : ""}`,
     );
     const foot = document.createElement("div");
@@ -1325,8 +1498,15 @@
         ta.focus();
         return;
       }
+      const pw = body.querySelector('input[name="cpw"]');
+      if (pw && !pw.value) {
+        shake(pw);
+        pw.focus();
+        return;
+      }
       m.close({
         value: ta ? ta.value.trim() : "",
+        password: pw ? pw.value : "",
         choice: body.querySelector('input[name="cchoice"]:checked')?.value,
       });
     };
@@ -1438,10 +1618,11 @@
       `${date.replace(/-/g, "")}T${time.replace(":", "")}00`;
     const e = (s) =>
       String(s || "")
+        .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
         .replace(/\\/g, "\\\\")
         .replace(/;/g, "\\;")
         .replace(/,/g, "\\,")
-        .replace(/\r?\n/g, "\\n");
+        .replace(/\r\n|\r|\n/g, "\\n");
     const stamp =
       new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
     const lines = [
@@ -1479,6 +1660,15 @@
       new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" }),
       `${b.code}.ics`,
     );
+  }
+
+  // รหัสผ่านชั่วคราวแบบสุ่ม อ่านง่าย ไม่มีตัวที่สับสน (0/O, 1/l)
+  function tempPassword() {
+    const abc = "abcdefghjkmnpqrstuvwxyz23456789";
+    const buf = new Uint32Array(12);
+    crypto.getRandomValues(buf);
+    const ch = [...buf].map((n) => abc[n % abc.length]).join("");
+    return `${ch.slice(0, 4)}-${ch.slice(4, 8)}-${ch.slice(8)}`;
   }
 
   async function copyText(text) {
@@ -1578,13 +1768,6 @@
     );
 
     // เส้นขอบฟ้าย่านบางรัก (ตึกสูง โดม และสายน้ำเจ้าพระยา) แบบเรียบง่าย
-    const SKYLINE =
-      raw(`<svg viewBox="0 0 1200 220" preserveAspectRatio="xMidYMax slice" fill="currentColor" aria-hidden="true">
-    <path d="M0 220V150h40v-18h30v88h20V112h46v108h14V138h52v82h18v-96l14-22 14 22v-14l16-34 16 34v14l14-22 14 22v96h22V96h40v124h16V128h58v92h18V60h16v-14h12V30h14v-10h8v200h14V118h50v102h18V104h22V86h50v18h22v116h20V140h40v-18h18v98h22V70h12V50h30v20h12v150h18V128h64v92h24V100h40v120h20V146h70v74z"/>
-    <circle cx="826" cy="76" r="18"/><rect x="824" y="34" width="4" height="26"/>
-    <path class="wave" d="M-120 204c60-14 120-14 180 0s120 14 180 0 120-14 180 0 120 14 180 0 120-14 180 0 120 14 180 0 120-14 180 0 120 14 180 0V230H-120z" opacity=".55"/>
-    <path class="wave2" d="M-120 212c50-10 100-10 150 0s100 10 150 0 100-10 150 0 100 10 150 0 100-10 150 0 100 10 150 0 100-10 150 0 100 10 150 0 100-10 150 0V230H-120z" opacity=".8"/>
-    </svg>`);
 
     // ------------------------------------------------------------------ my bookings (โทเคนในอุปกรณ์นี้)
     const MY_KEY = "br.my";
@@ -1619,8 +1802,10 @@
         const alive = new Set();
         my.items = [];
         my.byId.clear();
+        // เก็บโทเคนไว้เฉพาะที่ยังมีการจองที่ยังไม่จบ หรือเพิ่งจบไม่เกิน 14 วัน
+        const keepFrom = addDays(bkkNow().date, -14);
         for (const it of res.items) {
-          if (it.bookings.length) alive.add(it.token);
+          if (it.bookings.some((b) => b.date >= keepFrom)) alive.add(it.token);
           for (const b of it.bookings) {
             if (my.byId.has(b.id)) continue;
             const entry = { token: it.token, b };
@@ -1977,53 +2162,54 @@
         style="--room:${col(r)}"
         data-room="${r.id}"
       >
-        <div class="room-top">
-          <span class="room-floor">${icon("layers", "i-sm")} ${r.floor}</span>
+        <header class="room-head">
+          <div class="room-icon">${icon("door")}</div>
+          <p class="room-floor">${r.floor}</p>
+          <h3>${r.name}</h3>
+          <p class="room-meta">
+            รองรับ ${r.capacity} คน ·
+            ${r.needsApproval ? "รอผู้ดูแลอนุมัติ" : "ยืนยันทันที"}
+          </p>
           <span class="status-pill ${st.cls}"
             ><i class="dot"></i>${st.label}</span
           >
-        </div>
-        <div class="room-title">
-          <div class="room-icon">${icon("door")}</div>
-          <div>
-            <h3>${r.name}</h3>
-            <p>
-              รองรับ ${r.capacity} คน ·
-              ${r.needsApproval ? "ต้องรอการอนุมัติ" : "ยืนยันทันที"}
-            </p>
-          </div>
-        </div>
+        </header>
         ${r.description ? html`<p class="room-desc">${r.description}</p>` : ""}
         <div class="room-now">${nowBlock}</div>
-        <div class="day-bar" aria-label="ตารางการใช้ห้องวันนี้">
-          <div class="day-track">
+        <div class="day-bar">
+          <div
+            class="day-track"
+            role="img"
+            aria-label="ช่วงเวลาที่มีการจองวันนี้ ${list
+              .filter((b) => b.roomId === r.id)
+              .map((b) => `${b.start}–${b.end}`)
+              .join(", ") || "ไม่มี"}"
+          >
             ${segs}${nowPct >= 0 && nowPct <= 100
               ? html`<i class="day-now" style="left:${nowPct}%"></i>`
               : ""}
           </div>
-          <div class="day-ticks">
+          <div class="day-ticks" aria-hidden="true">
             ${ticks.map((t) => html`<span>${t}</span>`)}
           </div>
         </div>
         ${r.equipment.length
-          ? html`<div class="chips">
-              ${r.equipment.map(
-                (e) => html`<span class="chip chip-static">${e}</span>`,
-              )}
-            </div>`
+          ? html`<ul class="room-equip" aria-label="อุปกรณ์ในห้อง">
+              ${r.equipment.map((e) => html`<li>${e}</li>`)}
+            </ul>`
           : ""}
         <div class="room-actions">
           ${r.active
             ? html`<a
                 class="btn btn-primary"
                 href="book.html?room=${encodeURIComponent(r.id)}"
-                >${icon("calendar-plus")} จองห้องนี้</a
+                >จองห้องนี้</a
               >`
             : ""}
           <a
-            class="btn btn-soft"
+            class="link-more"
             href="calendar.html?v=day&room=${encodeURIComponent(r.id)}"
-            >${icon("calendar")} ดูตาราง</a
+            >ดูตาราง ${icon("chevron-right")}</a
           >
         </div>
       </article>`;
@@ -2035,45 +2221,45 @@
       setHTML(
         el,
         html`<section class="hero">
-            <div class="hero-orb" aria-hidden="true"></div>
-            <div class="skyline" aria-hidden="true">${SKYLINE}</div>
-            <div class="hero-text">
-              <span class="eyebrow"
-                >${icon("building", "i-sm")}
-                ${s.orgName}${s.subtitle ? ` · ${s.subtitle}` : ""}</span
+            <p class="eyebrow">${s.orgName}</p>
+            <h1>จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะ</span></h1>
+            <p class="hero-sub">
+              ดูห้องว่างแบบเรียลไทม์ แล้วจองได้ทันที จากคอมพิวเตอร์ แท็บเล็ต
+              หรือมือถือ
+            </p>
+            <div class="hero-actions">
+              <a class="btn btn-primary btn-lg" href="book.html"
+                >จองห้องประชุม</a
               >
-              <h1>
-                <span class="greet" id="h-greet">${greeting(now.minutes)}</span
-                >${s.siteName}
-              </h1>
-              <p class="hero-date" id="h-date">${fmtDate(now.date, "long")}</p>
-              <div class="hero-actions">
-                <a class="btn btn-primary btn-lg shine" href="book.html"
-                  >${icon("calendar-plus")} จองห้องประชุม</a
-                >
-                <a class="btn btn-glass btn-lg" href="calendar.html"
-                  >${icon("calendar")} ดูตารางห้อง</a
-                >
-              </div>
+              <a class="link-more" href="calendar.html"
+                >ดูตารางห้อง ${icon("chevron-right")}</a
+              >
             </div>
-            <div class="hero-clock">
-              <div class="clock-digits" id="h-clock" aria-hidden="true"></div>
-              <div class="clock-caption">เวลาประเทศไทย</div>
-              <div class="hero-stats">
-                <div class="hero-stat">
-                  <b id="h-today">–</b><span>การประชุมวันนี้</span>
-                </div>
-                <div class="hero-stat">
-                  <b id="h-free">–</b><span>ห้องว่างขณะนี้</span>
-                </div>
+            <dl class="hero-stats">
+              <div>
+                <dt>
+                  <span id="h-greet">${greeting(now.minutes)}</span> ·
+                  <span id="h-date">${fmtDate(now.date, "long")}</span>
+                </dt>
+                <dd class="clock-digits" id="h-clock"></dd>
               </div>
-            </div>
+              <div>
+                <dt>การประชุมวันนี้</dt>
+                <dd id="h-today">–</dd>
+              </div>
+              <div>
+                <dt>ห้องว่างขณะนี้</dt>
+                <dd id="h-free">–</dd>
+              </div>
+            </dl>
           </section>
           <section class="section">
             <div class="section-head">
               <h2>สถานะห้องประชุม</h2>
               <span class="live-dot ${S.online ? "" : "off"}"
-                >อัปเดตอัตโนมัติ</span
+                >${S.online
+                  ? "อัปเดตอัตโนมัติ"
+                  : "ออฟไลน์ · กำลังเชื่อมต่อใหม่"}</span
               >
             </div>
             <div
@@ -2094,8 +2280,8 @@
               <div class="section-head">
                 <h2>กำหนดการวันนี้</h2>
                 <span class="spacer"></span>
-                <a class="btn btn-ghost btn-sm" href="calendar.html"
-                  >ดูปฏิทิน ${icon("arrow-right", "i-sm")}</a
+                <a class="link-more" href="calendar.html"
+                  >ดูปฏิทิน ${icon("chevron-right")}</a
                 >
               </div>
               <div class="agenda" id="h-agenda">
@@ -2108,8 +2294,8 @@
               <div class="section-head">
                 <h2>การจองของฉัน</h2>
                 <span class="spacer"></span>
-                <a class="btn btn-ghost btn-sm" href="my.html"
-                  >ทั้งหมด ${icon("arrow-right", "i-sm")}</a
+                <a class="link-more" href="my.html"
+                  >ดูทั้งหมด ${icon("chevron-right")}</a
                 >
               </div>
               <div class="agenda" id="h-my"></div>
@@ -2118,6 +2304,7 @@
       );
       let todays = [];
       let first = true;
+      initReveal(el);
 
       function renderRooms() {
         const n = bkkNow();
@@ -2161,9 +2348,9 @@
             : emptyState(
                 "calendar-check",
                 "วันนี้ยังไม่มีการจอง",
-                "ห้องประชุมว่างทั้งวัน จองได้เลย",
-                html`<a class="btn btn-soft btn-sm" href="book.html"
-                  >${icon("plus")} จองห้อง</a
+                "ทุกห้องว่างทั้งวัน เริ่มจองได้ทันที",
+                html`<a class="btn btn-primary btn-sm" href="book.html"
+                  >จองห้องประชุม</a
                 >`,
               ),
         );
@@ -2183,8 +2370,8 @@
             ? up.map(({ b }) => agendaItem(b, { showDate: true }))
             : emptyState(
                 "user",
-                "ยังไม่มีการจองจากอุปกรณ์นี้",
-                "เมื่อจองแล้ว รายการจะแสดงที่นี่ หรือค้นหาด้วยรหัสการจองในเมนู “การจองของฉัน”",
+                "ยังไม่มีการจองบนอุปกรณ์นี้",
+                "การจองที่ทำจากอุปกรณ์นี้จะแสดงที่นี่ ถ้าจองจากอุปกรณ์อื่น ใช้รหัสการจองกับเบอร์โทรเรียกดูได้",
                 html`<a class="btn btn-soft btn-sm" href="my.html"
                   >${icon("search")} ค้นหาการจอง</a
                 >`,
@@ -2250,7 +2437,8 @@
       };
       setHTML(
         el,
-        html`<div class="cal-toolbar">
+        html`<h1 class="sr-only">ปฏิทินห้องประชุม</h1>
+          <div class="cal-toolbar">
             <div class="cal-nav">
               <button
                 class="btn btn-icon"
@@ -2265,15 +2453,15 @@
               </button>
             </div>
             <label class="cal-title"
-              ><span id="c-title"></span>${icon("chevron-down", "i-sm")}<input
-                type="date"
-                id="c-pick"
-                aria-label="เลือกวันที่"
+              ><span id="c-title" aria-live="polite"></span>${icon(
+                "chevron-down",
+                "i-sm",
+              )}<input type="date" id="c-pick" aria-label="เลือกวันที่"
             /></label>
-            <div class="seg" role="tablist" id="c-seg">
-              <button data-value="day" role="tab">รายวัน</button>
-              <button data-value="week" role="tab">รายสัปดาห์</button>
-              <button data-value="month" role="tab">รายเดือน</button>
+            <div class="seg" role="group" aria-label="มุมมองปฏิทิน" id="c-seg">
+              <button data-value="day">รายวัน</button>
+              <button data-value="week">รายสัปดาห์</button>
+              <button data-value="month">รายเดือน</button>
             </div>
           </div>
           <div class="cal-filters">
@@ -2339,6 +2527,12 @@
 
       async function render(dir = "fade", animate = true) {
         $("#c-title", el).textContent = title();
+        const unit = { day: "วัน", week: "สัปดาห์", month: "เดือน" }[st.view];
+        $('[data-act="prev"]', el).setAttribute(
+          "aria-label",
+          `${unit}ก่อนหน้า`,
+        );
+        $('[data-act="next"]', el).setAttribute("aria-label", `${unit}ถัดไป`);
         $("#c-pick", el).value = st.date;
         history.replaceState(
           null,
@@ -2709,7 +2903,12 @@
         if (go) {
           st.date = go.dataset.goto;
           st.view = "day";
-          return render("fade");
+          // เปิดวันจากปฏิทินรายเดือน: ย้ายโฟกัสไปที่หัวข้อวันที่ (ประกาศวันใหม่ให้ผู้ใช้คีย์บอร์ดทราบ)
+          return render("fade").then(() => {
+            const t = $("#c-title", el);
+            t.setAttribute("tabindex", "-1");
+            t.focus({ preventScroll: true });
+          });
         }
         const colEl = e.target.closest(".tg-col");
         if (colEl) slotClick(colEl, e);
@@ -2738,7 +2937,7 @@
           toEpoch(date, toHHMM(m)) + S.settings.slotMinutes * 60000 <=
           nowMs()
         )
-          return toast("ช่วงเวลานี้ผ่านไปแล้ว", "warning");
+          return toast("ช่วงเวลานี้ผ่านไปแล้ว เลือกเวลาถัดไปแทน", "warning");
         haptic();
         location.href = `book.html?room=${encodeURIComponent(room.id)}&date=${date}&start=${toHHMM(m)}`;
       }
@@ -2857,13 +3056,16 @@
       initSeg(seg);
       render("fade", false).then(() => {
         // เลื่อนไปยังเวลาปัจจุบันในมุมมองรายวัน
+        // ตารางเวลาเลื่อนในกรอบของตัวเอง (หัวคอลัมน์ห้องจึงติดด้านบนเสมอ)
         const line = $(".now-line", body);
-        if (line && st.view !== "month") {
-          const top = line.getBoundingClientRect().top;
-          if (top > innerHeight * 0.85)
-            window.scrollTo({
-              top: top + scrollY - innerHeight / 3,
-              behavior: "smooth",
+        const pane = $(".tgrid-scroll", body);
+        if (line && pane && st.view !== "month") {
+          const off =
+            line.getBoundingClientRect().top - pane.getBoundingClientRect().top;
+          if (off > pane.clientHeight * 0.7)
+            pane.scrollTo({
+              top: pane.scrollTop + off - pane.clientHeight / 3,
+              behavior: motionLevel() === "full" ? "smooth" : "auto",
             });
         }
       });
@@ -2884,7 +3086,8 @@
       const dur = toMin(b.end) - toMin(b.start);
       const body = html`<div class="detail-head" style="--room:${col(r)}">
           <div class="row-wrap">
-            ${statusBadge(b)} <span class="code">${b.code}</span>
+            ${statusBadge(b)}
+            ${b.code ? html`<span class="code">${b.code}</span>` : ""}
             ${mine
               ? html`<span class="badge badge-brand"
                   >${icon("user")} การจองของคุณ</span
@@ -3069,6 +3272,7 @@
               message:
                 "ระบบจะปรับเวลาสิ้นสุดเป็นเวลาปัจจุบัน เพื่อให้หน่วยงานอื่นจองห้องต่อได้",
               confirmText: "คืนห้อง",
+              cancelText: "ใช้ห้องต่อ",
               iconName: "door",
             });
             if (!ok) return;
@@ -3101,8 +3305,8 @@
       const r = await confirmDialog({
         title: "ยกเลิกการจองนี้?",
         message: `${titleOf(b)}\n${fmtDate(b.date, "long")} เวลา ${b.start}–${b.end} น.`,
-        confirmText: "ยืนยันยกเลิก",
-        cancelText: "ไม่ยกเลิก",
+        confirmText: "ยกเลิกการจอง",
+        cancelText: "เก็บการจองไว้",
         danger: true,
         input: {
           label: "เหตุผล (ไม่บังคับ)",
@@ -3239,7 +3443,8 @@
         repeat: "none",
         repeatCount: 4,
         agree: false,
-        remember: true,
+        remember: !!profile.organizer,
+        shared: false,
         editing: null,
         token: null,
       };
@@ -3406,6 +3611,12 @@
               class="slot ${cls}"
               data-m="${sl.m}"
               data-tip="${tip}"
+              aria-pressed="${inR ? "true" : "false"}"
+              aria-label="${toHHMM(sl.m)}–${toHHMM(sl.m + step)} น. · ${sl.busy
+                ? "ไม่ว่าง"
+                : sl.past
+                  ? "ผ่านไปแล้ว"
+                  : "ว่าง"}"
               ${sl.busy || sl.past || closed || !r?.active
                 ? raw('aria-disabled="true"')
                 : ""}
@@ -3540,6 +3751,8 @@
           type="button"
           class="dchip ${d === f.date ? "on" : ""} ${closed ? "off" : ""}"
           data-date="${d}"
+          aria-pressed="${d === f.date ? "true" : "false"}"
+          aria-label="${fmtDate(d, "long")}${closed ? ` · ${closed}` : ""}"
           data-tip="${closed || fmtDate(d, "long")}"
         >
           <span>${d === today ? "วันนี้" : TH_DAYS_SHORT[wd]}</span
@@ -3619,7 +3832,7 @@
                 () => html`<div class="skel" style="height:44px"></div>`,
               )}
             </div>
-            <div class="slot-hint" id="b-hint"></div>
+            <div class="slot-hint" id="b-hint" role="status"></div>
             <div class="chips" id="b-durs"></div>
             <div class="slot-legend">
               <span><i></i>ว่าง</span><span><i class="b"></i>ไม่ว่าง</span
@@ -3815,21 +4028,21 @@
                         <button
                           type="button"
                           data-value="none"
-                          aria-selected="${f.repeat === "none"}"
+                          aria-pressed="${f.repeat === "none"}"
                         >
                           ไม่ซ้ำ
                         </button>
                         <button
                           type="button"
                           data-value="weekly"
-                          aria-selected="${f.repeat === "weekly"}"
+                          aria-pressed="${f.repeat === "weekly"}"
                         >
                           ทุกสัปดาห์
                         </button>
                         <button
                           type="button"
                           data-value="daily"
-                          aria-selected="${f.repeat === "daily"}"
+                          aria-pressed="${f.repeat === "daily"}"
                         >
                           ทุกวันทำการ
                         </button>
@@ -3867,11 +4080,27 @@
                 type="checkbox"
                 name="remember"
                 ${f.remember ? raw("checked") : ""}
+                ${f.shared ? raw("disabled") : ""}
               /><span
                 >จดจำชื่อ หน่วยงาน และเบอร์โทรไว้ในอุปกรณ์นี้
                 สำหรับการจองครั้งถัดไป</span
               ></label
             >
+            ${f.editing
+              ? ""
+              : html`<label class="check full"
+                  ><input
+                    type="checkbox"
+                    name="shared"
+                    ${f.shared ? raw("checked") : ""}
+                  /><span
+                    >นี่เป็นอุปกรณ์ส่วนกลาง — ไม่ต้องเก็บการจองไว้ในอุปกรณ์นี้
+                    <small class="field-hint"
+                      >จดรหัสการจองไว้
+                      แล้วใช้รหัสกับเบอร์โทรเรียกดูจากอุปกรณ์ของคุณภายหลัง</small
+                    ></span
+                  ></label
+                >`}
           </div>
         </div>`;
       }
@@ -4037,11 +4266,13 @@
       }
 
       // ---------- step navigation
-      function renderStep(dir = "up") {
+      function renderStep(dir = "up", focusHead = false) {
         $$(".step", el).forEach((b) => {
           const n = Number(b.dataset.step);
           b.classList.toggle("active", n === f.step);
           b.classList.toggle("done", n < f.step);
+          if (n === f.step) b.setAttribute("aria-current", "step");
+          else b.removeAttribute("aria-current");
           setHTML(
             b.querySelector(".num"),
             n < f.step ? icon("check", "i-sm") : String(n),
@@ -4066,6 +4297,14 @@
               f.step === 1 ? step1() : f.step === 2 ? step2() : step3(),
             );
             bindStep();
+            // เปลี่ยนขั้นตอนแล้ว ย้ายโฟกัสไปที่หัวข้อแรกของขั้นตอนใหม่
+            if (focusHead) {
+              const h = pane.querySelector("h3");
+              if (h) {
+                h.setAttribute("tabindex", "-1");
+                h.focus({ preventScroll: true });
+              }
+            }
           },
           dir,
         );
@@ -4081,7 +4320,7 @@
         if (step === f.step) return;
         const dir = step > f.step ? "left" : "right";
         f.step = step;
-        renderStep(dir);
+        renderStep(dir, true);
       }
 
       function clearErrors() {
@@ -4089,19 +4328,30 @@
           x.classList.remove("invalid"),
         );
         $$(".field-error", pane).forEach((x) => x.remove());
+        $$("[aria-invalid]", pane).forEach((x) => {
+          x.removeAttribute("aria-invalid");
+          x.removeAttribute("aria-describedby");
+        });
       }
+      // ข้อความผิดพลาดผูกกับช่องกรอก (aria-invalid + aria-describedby) ให้โปรแกรมอ่านหน้าจออ่านได้
       function fieldError(name, msg) {
         const fieldEl = pane.querySelector(`[data-f="${name}"]`);
         if (!fieldEl) return null;
         fieldEl.classList.add("invalid");
+        const errId = `err-${name}`;
         fieldEl.insertAdjacentHTML(
           "beforeend",
-          `<span class="field-error"></span>`,
+          `<span class="field-error" id="${errId}"></span>`,
         );
         setHTML(
           fieldEl.lastElementChild,
           html`${icon("alert", "i-sm")} ${msg}`,
         );
+        const ctl = fieldEl.querySelector("input, select, textarea");
+        if (ctl) {
+          ctl.setAttribute("aria-invalid", "true");
+          ctl.setAttribute("aria-describedby", errId);
+        }
         return fieldEl;
       }
 
@@ -4172,7 +4422,14 @@
       }
       function failToast(msg, sel) {
         toast(msg, "warning");
-        shake(pane.querySelector(sel));
+        const target = pane.querySelector(sel);
+        shake(target);
+        // ข้อความค้างไว้ใต้ตารางเวลา (โปรแกรมอ่านหน้าจออ่านให้ทันที) ไม่หายไปพร้อม toast
+        const hint = $("#b-hint", el);
+        if (hint) setHTML(hint, html`${icon("alert")} ${msg}`);
+        target
+          ?.querySelector("button:not([aria-disabled=true]), input")
+          ?.focus();
         return false;
       }
 
@@ -4333,10 +4590,16 @@
             const closed = dayClosed(f.date);
             if (closed) return toast(closed, "warning");
             if (!room()?.active)
-              return toast("ห้องนี้ปิดให้บริการชั่วคราว", "warning");
+              return toast(
+                "ห้องนี้ปิดให้บริการชั่วคราว เลือกห้องอื่นได้",
+                "warning",
+              );
             if (sl.past) {
               shake(btn);
-              return toast("ช่วงเวลานี้ผ่านไปแล้ว", "warning");
+              return toast(
+                "ช่วงเวลานี้ผ่านไปแล้ว เลือกเวลาถัดไปแทน",
+                "warning",
+              );
             }
             if (sl.busy) {
               shake(btn);
@@ -4390,7 +4653,13 @@
             const t = e.target;
             if (!t.name) return;
             if (t.name === "remember") f.remember = t.checked;
-            else if (t.name === "repeatCount") {
+            else if (t.name === "shared") {
+              // เครื่องส่วนกลาง: ไม่จำข้อมูลผู้จองด้วย
+              f.shared = t.checked;
+              const rem = pane.querySelector('[name="remember"]');
+              rem.disabled = f.shared;
+              if (f.shared) rem.checked = f.remember = false;
+            } else if (t.name === "repeatCount") {
               f.repeatCount = Math.max(
                 2,
                 Math.min(s.maxRecurring, Number(t.value) || 2),
@@ -4407,6 +4676,8 @@
             if (fe) {
               fe.classList.remove("invalid");
               fe.querySelector(".field-error")?.remove();
+              t.removeAttribute("aria-invalid");
+              t.removeAttribute("aria-describedby");
             }
             renderSummary();
           };
@@ -4497,7 +4768,7 @@
           services: [...f.services],
           note: f.note.trim(),
         };
-        if (f.remember)
+        if (f.remember && !f.shared)
           store.set("br.profile", {
             organizer: body.organizer,
             department: dept,
@@ -4528,8 +4799,10 @@
             body.repeat = { type: f.repeat, count: f.repeatCount };
           if (skipConflicts) body.skipConflicts = true;
           const res = await api("/api/bookings", { method: "POST", body });
-          my.add(res.token);
-          my.load().catch(() => {});
+          if (!f.shared) {
+            my.add(res.token);
+            my.load().catch(() => {});
+          }
           showSuccess(res);
         } catch (err) {
           nextBtn.classList.remove("is-loading");
@@ -4549,6 +4822,7 @@
                 message: html`${conflictList(bad)}
                   <p>ต้องการจองเฉพาะวันที่ว่าง (${okN} ครั้ง) หรือไม่?</p>`,
                 confirmText: `จอง ${okN} ครั้งที่ว่าง`,
+                cancelText: "เลือกเวลาใหม่",
                 iconName: "repeat",
               });
               if (ok) return submit(true);
@@ -4613,14 +4887,22 @@
                     d="${pending ? "M50 27v25l15 9" : "M30 52l13 13 27-29"}"
                   />
                 </svg>
-                <h2>
-                  ${pending ? "ส่งคำขอจองเรียบร้อย" : "จองห้องประชุมสำเร็จ!"}
-                </h2>
+                <h2>${pending ? "ส่งคำขอจองแล้ว" : "จองห้องเรียบร้อย"}</h2>
                 <p>
                   ${pending
-                    ? "การจองอยู่ระหว่างรอผู้ดูแลอนุมัติ ติดตามสถานะได้ที่เมนู “การจองของฉัน” — หน้าจอจะอัปเดตอัตโนมัติเมื่อได้รับการอนุมัติ"
-                    : "ระบบยืนยันการจองเรียบร้อยแล้ว เก็บรหัสการจองไว้เพื่อใช้ค้นหาหรือยกเลิกจากอุปกรณ์อื่น"}
+                    ? "รอผู้ดูแลห้องประชุมอนุมัติ หน้า “การจองของฉัน” จะอัปเดตสถานะให้อัตโนมัติ"
+                    : "ห้องนี้เป็นของคุณตามเวลาที่จองแล้ว เก็บรหัสการจองไว้ใช้เรียกดูหรือยกเลิกจากอุปกรณ์อื่น"}
                 </p>
+                ${f.shared
+                  ? html`<div class="notice notice-info">
+                      ${icon("info")}
+                      <div>
+                        อุปกรณ์นี้จะไม่จำการจองนี้
+                        จดรหัสด้านล่างไว้หรือพิมพ์ใบยืนยัน
+                        แล้วใช้รหัสกับเบอร์โทรเรียกดูจากอุปกรณ์ของคุณ
+                      </div>
+                    </div>`
+                  : ""}
                 <div class="code-box">
                   <span>${b.code}</span
                   ><button
@@ -4654,11 +4936,13 @@
                   <button class="btn btn-soft" data-act="print">
                     ${icon("printer")} พิมพ์ใบยืนยัน
                   </button>
-                  <a class="btn btn-ghost" href="my.html"
-                    >${icon("calendar-check")} การจองของฉัน</a
-                  >
+                  ${f.shared
+                    ? ""
+                    : html`<a class="btn btn-ghost" href="my.html"
+                        >${icon("calendar-check")} ดูการจองของฉัน</a
+                      >`}
                   <button class="btn btn-primary" data-act="again">
-                    ${icon("plus")} จองเพิ่ม
+                    ${icon("plus")} จองห้องอีกครั้ง
                   </button>
                 </div>
               </div>`,
@@ -4804,7 +5088,7 @@
           </form>
           <div class="row" style="margin-top:24px;flex-wrap:wrap">
             <div class="seg" id="m-seg">
-              <button data-value="upcoming" aria-selected="true">
+              <button data-value="upcoming" aria-pressed="true">
                 กำลังจะถึง <span id="m-c-up"></span>
               </button>
               <button data-value="past">ที่ผ่านมา</button>
@@ -4950,6 +5234,7 @@
                     title: "ลบออกจากอุปกรณ์นี้?",
                     message: `${same > 1 ? `รายการในชุดเดียวกัน ${same} รายการจะถูกลบออกจากรายการในอุปกรณ์นี้` : "รายการจะถูกลบออกจากอุปกรณ์นี้เท่านั้น"} (การจองในระบบไม่ถูกยกเลิก — ค้นหากลับมาได้ด้วยรหัสการจองและเบอร์โทร)`,
                     confirmText: "ลบจากอุปกรณ์",
+                    cancelText: "เก็บไว้",
                     iconName: "trash",
                   });
                   if (!ok) return;
@@ -5078,7 +5363,9 @@
             </div>
             <span class="field-hint"
               >${motion
-                ? html`<a href="#" data-reset>ใช้ค่าเริ่มต้นของระบบ</a>`
+                ? html`<button type="button" class="link-btn" data-reset>
+                    ใช้ค่าเริ่มต้นของระบบ
+                  </button>`
                 : "ขณะนี้ใช้ค่าเริ่มต้นที่ผู้ดูแลกำหนด"}</span
             >
           </div>
@@ -5222,7 +5509,12 @@
         status: (ok) => {
           const was = S.online;
           S.online = ok;
-          $$(".live-dot").forEach((d) => d.classList.toggle("off", !ok));
+          $$(".live-dot").forEach((d) => {
+            d.classList.toggle("off", !ok);
+            d.textContent = ok
+              ? "อัปเดตอัตโนมัติ"
+              : "ออฟไลน์ · กำลังเชื่อมต่อใหม่";
+          });
           if (ok && !was) onBookings();
         },
       });
@@ -5258,9 +5550,9 @@
     // ชุดสีห้องที่ผ่านการตรวจสอบสำหรับผู้มีภาวะตาบอดสี (ทั้งธีมสว่างและมืด)
     const ROOM_SWATCHES = ["#0284c7", "#7c3aed", "#ea580c", "#0d9488"];
     const BRANDS = [
+      ["blue", "#0071e3", "น้ำเงิน (ค่าเริ่มต้น)"],
       ["green", "#0b7a4b", "เขียว กทม."],
       ["teal", "#0f766e", "เขียวน้ำทะเล"],
-      ["blue", "#1d4ed8", "น้ำเงิน"],
       ["indigo", "#4338ca", "คราม"],
       ["purple", "#7e22ce", "ม่วง"],
       ["rose", "#be123c", "แดงกุหลาบ"],
@@ -5580,6 +5872,7 @@
     }
 
     async function enter() {
+      if (A.me.mustChange) return showFirstPassword();
       try {
         await loadRooms();
         if (isAdmin()) A.settings = (await api("/api/admin/settings")).settings;
@@ -5596,7 +5889,6 @@
         rooms: A.rooms,
         pending: A.pending,
       });
-      if (A.me.mustChange) changePassword(true);
     }
 
     // ------------------------------------------------------------------ shell
@@ -5607,96 +5899,124 @@
       const groups = [...new Set(visible.map((x) => x.group))];
       setHTML(
         root,
-        html`<div class="adm">
-          <aside class="side" id="side" aria-label="เมนูผู้ดูแล">
-            <div class="side-brand">
-              <span class="brand-mark"
-                >${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}</span
-              >
-              <div><b>ผู้ดูแลระบบ</b><small>${s.orgName}</small></div>
-            </div>
-            <nav class="side-nav">
-              ${groups.map(
-                (g) =>
-                  html`<div class="side-group">${g}</div>
-                    ${visible
-                      .filter((x) => x.group === g)
-                      .map(
-                        (x) =>
-                          html`<a
-                            class="side-link"
-                            href="${pageFile(x.id)}"
-                            data-sec="${x.id}"
-                            >${icon(x.icon)} <span>${x.label}</span>${x.id ===
-                            "bookings"
-                              ? html`<span
-                                  class="pill"
-                                  id="pending-pill"
-                                  hidden
-                                ></span>`
-                              : ""}</a
-                          >`,
-                      )}`,
-              )}
-            </nav>
-            <div class="side-foot">
-              <div class="me">
-                <span class="avatar"
-                  >${(A.me.name || A.me.username).slice(0, 1)}</span
+        html`<a class="skip-link" href="#sec">ข้ามไปยังเนื้อหา</a>
+          <div class="adm">
+            <aside class="side" id="side" aria-label="เมนูผู้ดูแล">
+              <div class="side-brand">
+                <span class="brand-mark"
+                  >${s.logo
+                    ? html`<img src="${s.logo}" alt="" />`
+                    : EMBLEM}</span
                 >
-                <div>
-                  <b>${A.me.name}</b
-                  ><small
-                    >@${A.me.username} ·
-                    ${isAdmin() ? "ผู้ดูแลระบบ" : "เจ้าหน้าที่"}</small
-                  >
-                </div>
+                <div><b>ผู้ดูแลระบบ</b><small>${s.orgName}</small></div>
               </div>
-              <button class="btn btn-ghost btn-sm" id="btn-pass">
-                ${icon("key", "i-sm")} เปลี่ยนรหัสผ่าน
-              </button>
-              <button class="btn btn-danger-soft btn-sm" id="btn-logout">
-                ${icon("log-out", "i-sm")} ออกจากระบบ
-              </button>
+              <nav class="side-nav">
+                ${groups.map(
+                  (g) =>
+                    html`<div class="side-group">${g}</div>
+                      ${visible
+                        .filter((x) => x.group === g)
+                        .map(
+                          (x) =>
+                            html`<a
+                              class="side-link"
+                              href="${pageFile(x.id)}"
+                              data-sec="${x.id}"
+                              >${icon(x.icon)} <span>${x.label}</span>${x.id ===
+                              "bookings"
+                                ? html`<span
+                                    class="pill"
+                                    id="pending-pill"
+                                    hidden
+                                  ></span>`
+                                : ""}</a
+                            >`,
+                        )}`,
+                )}
+              </nav>
+              <div class="side-foot">
+                <div class="me">
+                  <span class="avatar"
+                    >${(A.me.name || A.me.username).slice(0, 1)}</span
+                  >
+                  <div>
+                    <b>${A.me.name}</b
+                    ><small
+                      >@${A.me.username} ·
+                      ${isAdmin() ? "ผู้ดูแลระบบ" : "เจ้าหน้าที่"}</small
+                    >
+                  </div>
+                </div>
+                <button class="btn btn-ghost btn-sm" id="btn-pass">
+                  ${icon("key", "i-sm")} เปลี่ยนรหัสผ่าน
+                </button>
+                <button class="btn btn-danger-soft btn-sm" id="btn-logout">
+                  ${icon("log-out", "i-sm")} ออกจากระบบ
+                </button>
+              </div>
+            </aside>
+            <div class="side-scrim" id="scrim"></div>
+            <div class="adm-main">
+              <header class="adm-top">
+                <button
+                  class="btn btn-ghost btn-icon menu-btn"
+                  id="btn-menu"
+                  aria-label="เปิดเมนู"
+                  aria-controls="side"
+                  aria-expanded="false"
+                >
+                  ${icon("menu")}
+                </button>
+                <h1 id="sec-title"></h1>
+                <span class="live-dot" id="live-dot"
+                  ><span class="live-text">อัปเดตสด</span></span
+                >
+                <a
+                  class="btn btn-soft btn-sm top-site"
+                  href="/"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label="เปิดหน้าจองห้อง (แท็บใหม่)"
+                  >${icon("external", "i-sm")} <span>หน้าจองห้อง</span></a
+                >
+              </header>
+              <main class="adm-content" id="sec" tabindex="-1"></main>
             </div>
-          </aside>
-          <div class="side-scrim" id="scrim"></div>
-          <div class="adm-main">
-            <header class="adm-top">
-              <button
-                class="btn btn-ghost btn-icon menu-btn"
-                id="btn-menu"
-                aria-label="เปิดเมนู"
-              >
-                ${icon("menu")}
-              </button>
-              <h1 id="sec-title"></h1>
-              <span class="live-dot" id="live-dot">อัปเดตสด</span>
-              <a
-                class="btn btn-soft btn-sm"
-                href="/"
-                target="_blank"
-                rel="noopener"
-                >${icon("external", "i-sm")} <span>หน้าจองห้อง</span></a
-              >
-            </header>
-            <div class="adm-content" id="sec"></div>
-          </div>
-        </div>`,
+          </div>`,
       );
       const side = $("#side");
-      $("#btn-menu").onclick = () => side.classList.add("open");
-      $("#scrim").onclick = () => side.classList.remove("open");
+      const menuBtn = $("#btn-menu");
+      // เมนูแบบลิ้นชัก (จอเล็ก): เปิดแล้วโฟกัสเมนูปัจจุบัน ปิดด้วย Esc/แตะพื้นหลัง แล้วคืนโฟกัส
+      const setMenu = (open, restore = true) => {
+        side.classList.toggle("open", open);
+        menuBtn.setAttribute("aria-expanded", String(open));
+        if (open)
+          (
+            side.querySelector(".side-link.active") ||
+            side.querySelector("a,button")
+          )?.focus();
+        else if (restore && side.contains(document.activeElement))
+          menuBtn.focus();
+      };
+      menuBtn.onclick = () => setMenu(true);
+      $("#scrim").onclick = () => setMenu(false);
+      side.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && side.classList.contains("open")) {
+          e.stopPropagation();
+          setMenu(false);
+        }
+      });
       side.addEventListener(
         "click",
-        (e) => e.target.closest(".side-link") && side.classList.remove("open"),
+        (e) => e.target.closest(".side-link") && setMenu(false, false),
       );
       $("#btn-pass").onclick = () => changePassword(false);
       $("#btn-logout").onclick = async () => {
         const ok = await confirmDialog({
           title: "ออกจากระบบ?",
-          message: "คุณต้องการออกจากระบบผู้ดูแลใช่หรือไม่",
+          message: "เมื่อกลับมาใช้เมนูผู้ดูแลอีกครั้ง ต้องเข้าสู่ระบบใหม่",
           confirmText: "ออกจากระบบ",
+          cancelText: "อยู่ในระบบต่อ",
           iconName: "log-out",
         });
         if (!ok) return;
@@ -5796,7 +6116,13 @@
         }, 300),
         status: (ok) => {
           A.online = ok;
-          $("#live-dot")?.classList.toggle("off", !ok);
+          const dot = $("#live-dot");
+          if (dot) {
+            dot.classList.toggle("off", !ok);
+            dot.querySelector(".live-text").textContent = ok
+              ? "อัปเดตสด"
+              : "ออฟไลน์ · กำลังเชื่อมต่อใหม่";
+          }
         },
       });
     }
@@ -5827,61 +6153,164 @@
       </div>`;
     }
 
-    function changePassword(forced) {
+    // ฟิลด์ตั้งรหัสผ่านใหม่ (ใช้ทั้งหน้าตั้งรหัสครั้งแรกและหน้าต่างเปลี่ยนรหัสผ่าน)
+    const PW_HINT =
+      "อย่างน้อย 12 ตัวอักษร วลีที่จำง่ายปลอดภัยกว่าคำสั้นที่ซับซ้อน";
+    function passwordFields() {
+      return html`<label class="field" data-f="current"
+          ><span>รหัสผ่านปัจจุบัน</span
+          ><input
+            class="input"
+            type="password"
+            name="current"
+            autocomplete="current-password"
+            required
+        /></label>
+        <label class="field" data-f="next"
+          ><span>รหัสผ่านใหม่</span
+          ><input
+            class="input"
+            type="password"
+            name="next"
+            autocomplete="new-password"
+            minlength="12"
+            aria-describedby="pw-hint"
+            required
+          /><small class="field-hint" id="pw-hint">${PW_HINT}</small></label
+        >
+        <label class="field" data-f="confirm"
+          ><span>ยืนยันรหัสผ่านใหม่</span
+          ><input
+            class="input"
+            type="password"
+            name="confirm"
+            autocomplete="new-password"
+            required
+        /></label>`;
+    }
+
+    // ตรวจและส่งรหัสผ่านใหม่ คืนค่า true เมื่อสำเร็จ
+    async function submitPassword(form, btn) {
+      $$(".field-error", form).forEach((x) => x.remove());
+      $$(".invalid", form).forEach((x) => x.classList.remove("invalid"));
+      $$("[aria-invalid]", form).forEach((x) =>
+        x.removeAttribute("aria-invalid"),
+      );
+      const err = (k, msg) => {
+        const fe = form.querySelector(`[data-f="${k}"]`);
+        fe.classList.add("invalid");
+        const inp = fe.querySelector("input");
+        const note = document.createElement("span");
+        note.className = "field-error";
+        note.id = `pw-err-${k}`;
+        note.textContent = msg;
+        fe.append(note);
+        inp.setAttribute("aria-invalid", "true");
+        inp.setAttribute(
+          "aria-describedby",
+          k === "next" ? `pw-hint ${note.id}` : note.id,
+        );
+        shake(fe);
+        inp.focus();
+      };
+      if (!form.current.value) {
+        err("current", "กรอกรหัสผ่านที่ใช้อยู่ตอนนี้");
+        return false;
+      }
+      if (form.next.value.length < 12) {
+        err("next", "ต้องมีอย่างน้อย 12 ตัวอักษร");
+        return false;
+      }
+      if (form.next.value !== form.confirm.value) {
+        err("confirm", "รหัสผ่านทั้งสองช่องไม่ตรงกัน");
+        return false;
+      }
+      btn.classList.add("is-loading");
+      try {
+        await api("/api/admin/password", {
+          method: "POST",
+          body: { current: form.current.value, next: form.next.value },
+        });
+        A.me.mustChange = false;
+        return true;
+      } catch (e) {
+        btn.classList.remove("is-loading");
+        const fields = e.data?.fields || {};
+        if (Object.keys(fields).length)
+          Object.entries(fields).forEach(([k, v]) => err(k, v));
+        else toastError(e);
+        return false;
+      }
+    }
+
+    // บัญชีใหม่หรือบัญชีที่ถูกรีเซ็ต: ต้องตั้งรหัสผ่านของตนเองก่อน (เซิร์ฟเวอร์บังคับด้วย)
+    function showFirstPassword() {
+      const s = A.settings;
+      shellCache.clear();
+      document.title = `ตั้งรหัสผ่านใหม่ · ${s.siteName}`;
+      setHTML(
+        root,
+        html`<main class="login-wrap">
+          <form class="card login-card" id="first-pw" novalidate>
+            <div class="login-head">
+              <span class="brand-mark"
+                >${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}</span
+              >
+              <div>
+                <h1>ตั้งรหัสผ่านของคุณ</h1>
+                <p>
+                  สวัสดี ${A.me.name} · ตั้งรหัสผ่านใหม่แทนรหัสชั่วคราว
+                  แล้วเริ่มใช้งานได้ทันที
+                </p>
+              </div>
+            </div>
+            ${passwordFields()}
+            <button class="btn btn-primary btn-lg btn-block" type="submit">
+              ${icon("check")} บันทึกและเริ่มใช้งาน
+            </button>
+            <div class="login-foot">
+              <button type="button" class="btn btn-ghost btn-sm" id="pw-out">
+                ${icon("log-out", "i-sm")} ออกจากระบบ
+              </button>
+              <span
+                >${icon("shield", "i-sm")}
+                รหัสผ่านใหม่จะใช้แทนรหัสชั่วคราวทันที</span
+              >
+            </div>
+          </form>
+        </main>`,
+      );
+      const form = $("#first-pw");
+      form.current.focus();
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = form.querySelector('button[type="submit"]');
+        if (await submitPassword(form, btn)) {
+          toast("ตั้งรหัสผ่านแล้ว เริ่มใช้งานได้เลย", "success");
+          await enter();
+        }
+      };
+      $("#pw-out").onclick = async () => {
+        await api("/api/admin/logout", { method: "POST" }).catch(() => {});
+        showLogin();
+      };
+    }
+
+    function changePassword() {
       const body = document.createElement("form");
       body.className = "stack";
+      body.noValidate = true;
       setHTML(
         body,
-        html`${forced
-            ? html`<div class="notice notice-warning">
-                ${icon("shield")}
-                <div>
-                  เพื่อความปลอดภัย กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งาน
-                  (รหัสผ่านเริ่มต้นไม่ปลอดภัย)
-                </div>
-              </div>`
-            : ""}
-          <label class="field" data-f="current"
-            ><span>รหัสผ่านปัจจุบัน</span
-            ><input
-              class="input"
-              type="password"
-              name="current"
-              autocomplete="current-password"
-              required
-          /></label>
-          <label class="field" data-f="next"
-            ><span>รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)</span
-            ><input
-              class="input"
-              type="password"
-              name="next"
-              autocomplete="new-password"
-              minlength="8"
-              required
-          /></label>
-          <label class="field" data-f="confirm"
-            ><span>ยืนยันรหัสผ่านใหม่</span
-            ><input
-              class="input"
-              type="password"
-              name="confirm"
-              autocomplete="new-password"
-              required
-          /></label>
-          <button type="submit" hidden></button>`,
+        html`${passwordFields()}<button type="submit" hidden></button>`,
       );
       const foot = document.createElement("div");
       foot.className = "row";
       setHTML(
         foot,
-        html`${forced
-            ? ""
-            : html`<button class="btn btn-ghost" data-x>ยกเลิก</button>`}<button
-            class="btn btn-primary"
-            data-ok
-          >
-            ${icon("check")} บันทึกรหัสผ่าน
+        html`<button class="btn btn-ghost" data-x>กลับ</button
+          ><button class="btn btn-primary" data-ok>
+            ${icon("check")} บันทึกรหัสผ่านใหม่
           </button>`,
       );
       const m = openModal({
@@ -5889,45 +6318,15 @@
         body,
         footer: foot,
         size: "sm",
-        dismissible: !forced,
       });
-      if (forced) m.el.querySelector(".modal-x").hidden = true;
-      foot
-        .querySelector("[data-x]")
-        ?.addEventListener("click", () => m.close());
+      foot.querySelector("[data-x]").addEventListener("click", () => m.close());
       const submit = async () => {
-        $$(".field-error", body).forEach((x) => x.remove());
-        $$(".invalid", body).forEach((x) => x.classList.remove("invalid"));
-        const f = body;
-        const err = (k, msg) => {
-          const fe = f.querySelector(`[data-f="${k}"]`);
-          fe.classList.add("invalid");
-          fe.insertAdjacentHTML(
-            "beforeend",
-            "<span class='field-error'></span>",
-          );
-          fe.lastElementChild.textContent = msg;
-          shake(fe);
-        };
-        if (f.next.value.length < 8) return err("next", "อย่างน้อย 8 ตัวอักษร");
-        if (f.next.value !== f.confirm.value)
-          return err("confirm", "รหัสผ่านไม่ตรงกัน");
-        const btn = foot.querySelector("[data-ok]");
-        btn.classList.add("is-loading");
-        try {
-          await api("/api/admin/password", {
-            method: "POST",
-            body: { current: f.current.value, next: f.next.value },
-          });
-          A.me.mustChange = false;
+        if (await submitPassword(body, foot.querySelector("[data-ok]"))) {
           m.close();
-          toast("เปลี่ยนรหัสผ่านเรียบร้อย", "success");
-        } catch (e) {
-          btn.classList.remove("is-loading");
-          const fields = e.data?.fields || {};
-          if (Object.keys(fields).length)
-            Object.entries(fields).forEach(([k, v]) => err(k, v));
-          else toastError(e);
+          toast(
+            "เปลี่ยนรหัสผ่านแล้ว อุปกรณ์อื่นที่เคยเข้าสู่ระบบจะถูกออกจากระบบ",
+            "success",
+          );
         }
       };
       foot.querySelector("[data-ok]").onclick = submit;
@@ -6123,6 +6522,7 @@
         } else if (a === "delete") {
           const ok = await confirmDialog({
             title: "ลบการจองถาวร?",
+            cancelText: "เก็บไว้",
             message: `${b.code} · ${titleOf(b)}\nข้อมูลจะถูกลบออกจากระบบและกู้คืนไม่ได้ (แนะนำให้ใช้ “ยกเลิก” แทน เพื่อเก็บประวัติ)`,
             confirmText: "ลบถาวร",
             danger: true,
@@ -6193,14 +6593,14 @@
             <button
               type="button"
               data-value="meeting"
-              aria-selected="${b.kind !== "block"}"
+              aria-pressed="${b.kind !== "block"}"
             >
               ${icon("users", "i-sm")} การประชุม
             </button>
             <button
               type="button"
               data-value="block"
-              aria-selected="${b.kind === "block"}"
+              aria-pressed="${b.kind === "block"}"
             >
               ${icon("ban", "i-sm")} ปิดใช้ห้อง
             </button>
@@ -6498,6 +6898,7 @@
               message: html`${conflictList(d.conflicts)}
                 <p>จองเฉพาะวันที่ว่าง?</p>`,
               confirmText: "จองเฉพาะวันที่ว่าง",
+              cancelText: "เลือกวันใหม่",
             });
             if (ok) save(true);
             return;
@@ -7027,17 +7428,20 @@
     async function secBookings(el, ctx) {
       const q0 = new URLSearchParams(location.search);
       const today = bkkNow().date;
+      // มีคำขอรออนุมัติ: เปิดมาที่รายการรออนุมัติก่อน (งานที่ต้องทำ)
+      const startStatus =
+        q0.get("status") || (A.pending > 0 ? "pending" : "upcoming");
       const st = {
         q: "",
         room: "",
-        status: q0.get("status") || "upcoming",
+        status: startStatus,
         from: "",
         to: "",
         sort: "date_asc",
         page: 1,
         size: 25,
         sel: new Set(),
-        preset: q0.get("status") === "pending" ? "pending" : "upcoming",
+        preset: startStatus === "pending" ? "pending" : "upcoming",
       };
       let data = { items: [], total: 0, page: 1, pages: 1 };
       const presets = [
@@ -7296,7 +7700,9 @@
                           <div class="t-sub">${r?.floor || ""}</div>
                         </td>
                         <td>
-                          <div class="t-title">${titleOf(b)}</div>
+                          <button type="button" class="t-title t-open">
+                            ${titleOf(b)}
+                          </button>
                           <div class="t-sub">
                             ${b.kind === "block"
                               ? "ปิดใช้ห้องโดยผู้ดูแล"
@@ -7314,7 +7720,9 @@
                                     class="btn btn-icon btn-sm ${a.cls}"
                                     data-st="${a.k}"
                                     data-tip="${a.label}"
-                                    aria-label="${a.label}"
+                                    aria-label="${a.label} ${b.code} ${titleOf(
+                                      b,
+                                    )}"
                                   >
                                     ${icon(a.ic, "i-sm")}
                                   </button>`,
@@ -7323,7 +7731,7 @@
                               class="btn btn-ghost btn-icon btn-sm"
                               data-edit
                               data-tip="แก้ไข"
-                              aria-label="แก้ไข"
+                              aria-label="แก้ไข ${b.code} ${titleOf(b)}"
                             >
                               ${icon("edit", "i-sm")}
                             </button>
@@ -7347,7 +7755,7 @@
                         type="checkbox"
                         data-sel
                         ${st.sel.has(b.id) ? raw("checked") : ""}
-                        aria-label="เลือก"
+                        aria-label="เลือก ${b.code} ${titleOf(b)}"
                     /></label>
                     <div>
                       <div class="row-wrap">
@@ -7388,7 +7796,7 @@
                 <div class="row">
                   <button
                     class="btn btn-sm"
-                    data-page="${data.page - 1}"
+                    data-pg="${data.page - 1}"
                     ${data.page <= 1 ? raw("disabled") : ""}
                   >
                     ${icon("chevron-left", "i-sm")} ก่อนหน้า
@@ -7396,7 +7804,7 @@
                   <span>หน้า ${data.page}/${data.pages}</span>
                   <button
                     class="btn btn-sm"
-                    data-page="${data.page + 1}"
+                    data-pg="${data.page + 1}"
                     ${data.page >= data.pages ? raw("disabled") : ""}
                   >
                     ถัดไป ${icon("chevron-right", "i-sm")}
@@ -7514,9 +7922,9 @@
           }
           return;
         }
-        const pg = e.target.closest("[data-page]");
+        const pg = e.target.closest("button[data-pg]");
         if (pg && !pg.disabled) {
-          st.page = Number(pg.dataset.page);
+          st.page = Number(pg.dataset.pg);
           load();
           window.scrollTo({ top: 0, behavior: "smooth" });
           return;
@@ -7714,6 +8122,7 @@
             message:
               "ห้องจะไม่แสดงให้จองอีก แต่ประวัติการจองเดิมยังคงอยู่\n(หากต้องการปิดชั่วคราว ให้ใช้สวิตช์ “เปิดให้บริการ” แทน)",
             confirmText: "นำออก",
+            cancelText: "เก็บห้องไว้",
             danger: true,
           });
           if (!ok) return;
@@ -7725,6 +8134,7 @@
                 title: "ห้องนี้ยังมีการจองค้างอยู่",
                 message: `${err.message}\nต้องการยกเลิกการจองเหล่านั้นและนำห้องออกหรือไม่?`,
                 confirmText: "ยกเลิกการจองและนำออก",
+                cancelText: "ไม่นำออก",
                 danger: true,
               });
               if (!ok2) return;
@@ -7753,6 +8163,7 @@
             message:
               "ผู้ใช้จะจองห้องนี้ไม่ได้จนกว่าจะเปิดอีกครั้ง (การจองเดิมไม่ถูกยกเลิก)",
             confirmText: "ปิดชั่วคราว",
+            cancelText: "เปิดให้บริการต่อ",
             input: {
               label: "ข้อความแจ้งผู้ใช้ (ไม่บังคับ)",
               placeholder: "เช่น ปิดปรับปรุงระบบปรับอากาศถึงวันที่ 15",
@@ -8724,7 +9135,7 @@
                   html`<button
                     type="button"
                     data-value="${val}"
-                    aria-selected="${val === v}"
+                    aria-pressed="${val === v}"
                   >
                     ${label}
                   </button>`,
@@ -8757,6 +9168,7 @@
                         type="button"
                         data-rm="${i}"
                         aria-label="ลบ ${t}"
+                        data-tip="ลบ ${t}"
                       >
                         ${icon("x", "i-sm")}
                       </button></span
@@ -8783,8 +9195,8 @@
               <label class="btn btn-soft btn-sm"
                 >${icon("upload", "i-sm")} เลือกไฟล์<input
                   type="file"
+                  class="sr-only"
                   accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
-                  hidden
               /></label>
               ${v
                 ? html`<button
@@ -8809,7 +9221,9 @@
         ].join(" ");
         return html`<div class="set-row ${cls}" data-row="${fd.k}">
           <div class="lbl">
-            <b>${fd.label}</b>${fd.hint ? html`<small>${fd.hint}</small>` : ""}
+            <b id="lbl-${fd.k}">${fd.label}</b>${fd.hint
+              ? html`<small id="hint-${fd.k}">${fd.hint}</small>`
+              : ""}
           </div>
           <div class="ctl">${control(fd)}</div>
         </div>`;
@@ -8857,7 +9271,9 @@
             role="region"
             aria-label="บันทึกการตั้งค่า"
           >
-            <b>${icon("edit", "i-sm")} <span id="s-count"></span></b>
+            <b
+              >${icon("edit", "i-sm")} <span id="s-count" role="status"></span
+            ></b>
             <button class="btn btn-ghost btn-sm" id="s-reset">
               ยกเลิกการเปลี่ยนแปลง
             </button>
@@ -8868,6 +9284,27 @@
       );
       stagger($(".set-sections", el));
       $$(".seg", el).forEach((s2) => initSeg(s2));
+      // ทุกช่องตั้งค่ามีชื่อ (จากหัวข้อของแถว) และคำอธิบาย ให้โปรแกรมอ่านหน้าจออ่านได้
+      function labelRows(scope) {
+        $$("[data-row]", scope).forEach((row) => {
+          const k = row.dataset.row;
+          const hint = row.querySelector(`#hint-${CSS.escape(k)}`);
+          row
+            .querySelectorAll(
+              ".ctl input, .ctl select, .ctl textarea, .ctl .seg",
+            )
+            .forEach((c) => {
+              if (c.type === "file") return;
+              if (!c.hasAttribute("aria-label"))
+                c.setAttribute("aria-labelledby", `lbl-${k}`);
+              if (hint) c.setAttribute("aria-describedby", `hint-${k}`);
+              if (c.type === "checkbox" && c.closest(".switch"))
+                c.setAttribute("role", "switch");
+              if (c.classList.contains("seg")) c.setAttribute("role", "group");
+            });
+        });
+      }
+      labelRows(el);
 
       const fieldDef = (k) =>
         SET_GROUPS.flatMap((g) => g.fields).find((x) => x.k === k);
@@ -8886,6 +9323,7 @@
         setHTML(tmp, rowHtml(fieldDef(k)));
         rowEl.replaceWith(tmp.firstElementChild);
         $$(`[data-row="${k}"] .seg`, el).forEach((s2) => initSeg(s2));
+        labelRows(el.querySelector(`[data-row="${k}"]`).parentElement);
         refreshRow(k);
       }
       const preview = () => {
@@ -8913,7 +9351,10 @@
         if (logo && e.target.files?.[0]) {
           const file = e.target.files[0];
           if (file.size > 290 * 1024) {
-            toast("ไฟล์ใหญ่เกินไป (ไม่เกินประมาณ 300KB)", "warning");
+            toast(
+              "ไฟล์โลโก้ใหญ่เกิน 300KB ลดขนาดภาพ หรือใช้ไฟล์ SVG/PNG ที่เล็กลง",
+              "warning",
+            );
             return;
           }
           const reader = new FileReader();
@@ -9167,8 +9608,10 @@
           else if (e.target.closest("[data-del]")) {
             const ok = await confirmDialog({
               title: `ลบผู้ใช้ ${u.username}?`,
-              message: "ผู้ใช้นี้จะไม่สามารถเข้าสู่ระบบได้อีก",
+              message:
+                "ผู้ใช้นี้จะเข้าสู่ระบบไม่ได้อีก และกู้คืนบัญชีไม่ได้ (ถ้าต้องการพักไว้ ให้ปิดการใช้งานแทน)",
               confirmText: "ลบผู้ใช้",
+              cancelText: "เก็บผู้ใช้ไว้",
               danger: true,
               iconName: "trash",
             });
@@ -9233,21 +9676,53 @@
                 /><span>เปิดใช้งานบัญชี</span></label
               >`
             : ""}
-          <label class="field" data-f="password"
-            ><span
-              >${editing
-                ? "ตั้งรหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)"
-                : "รหัสผ่านเริ่มต้น (อย่างน้อย 8 ตัวอักษร)"}</span
-            >
-            <input
-              class="input"
-              name="password"
-              type="text"
-              autocomplete="new-password"
-              placeholder="${editing
-                ? ""
-                : "ผู้ใช้จะถูกให้เปลี่ยนเมื่อเข้าสู่ระบบครั้งแรก"}"
-          /></label>`,
+          ${self
+            ? html`<p class="field-hint">
+                เปลี่ยนรหัสผ่านของคุณเองได้ที่ปุ่ม “เปลี่ยนรหัสผ่าน”
+                ด้านล่างเมนู
+              </p>`
+            : html`<div class="field" data-f="password">
+                <label for="u-pw"
+                  >${editing
+                    ? "รหัสผ่านชั่วคราวใหม่"
+                    : "รหัสผ่านชั่วคราว"}</label
+                >
+                <div class="row nowrap">
+                  <input
+                    class="input"
+                    id="u-pw"
+                    name="password"
+                    type="text"
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-describedby="u-pw-hint"
+                  />
+                  <button type="button" class="btn btn-ghost" data-genpw>
+                    ${icon("refresh", "i-sm")} สุ่มรหัส
+                  </button>
+                </div>
+                <small class="field-hint" id="u-pw-hint"
+                  >${editing
+                    ? "เว้นว่างถ้าไม่เปลี่ยน · ผู้ใช้ต้องตั้งรหัสของตนเองเมื่อเข้าสู่ระบบครั้งถัดไป"
+                    : "อย่างน้อย 12 ตัวอักษร · แจ้งผู้ใช้ทางช่องทางส่วนตัว ระบบจะให้ตั้งรหัสใหม่เมื่อเข้าสู่ระบบครั้งแรก"}</small
+                >
+              </div>`}
+          ${self
+            ? ""
+            : html`<label class="field" data-f="confirmPassword"
+                ><span>รหัสผ่านของคุณ</span
+                ><input
+                  class="input"
+                  name="confirmPassword"
+                  type="password"
+                  autocomplete="current-password"
+                  aria-describedby="u-cpw-hint"
+                /><small class="field-hint" id="u-cpw-hint"
+                  >${editing
+                    ? "ต้องใส่เมื่อเปลี่ยนสิทธิ์หรือตั้งรหัสผ่านชั่วคราวใหม่"
+                    : "ยืนยันตัวตนก่อนเพิ่มผู้ใช้"}</small
+                ></label
+              >`}`,
       );
       const foot = document.createElement("div");
       foot.className = "row";
@@ -9265,10 +9740,20 @@
         size: "sm",
       });
       foot.querySelector("[data-x]").onclick = () => m.close();
+      const gen = body.querySelector("[data-genpw]");
+      if (gen)
+        gen.onclick = () => {
+          body.password.value = tempPassword();
+          body.password.select();
+        };
       foot.querySelector("[data-ok]").onclick = async () => {
         const f = body;
+        $$(".field-error", f).forEach((x) => x.remove());
+        $$(".invalid", f).forEach((x) => x.classList.remove("invalid"));
         const payload = { name: f.name.value.trim(), role: f.role.value };
-        if (f.password.value) payload.password = f.password.value;
+        if (f.password?.value) payload.password = f.password.value;
+        if (f.confirmPassword?.value)
+          payload.confirmPassword = f.confirmPassword.value;
         if (f.active) payload.active = f.active.checked;
         if (self) delete payload.role;
         try {
@@ -9523,7 +10008,7 @@
                 <div class="row">
                   <button
                     class="btn btn-sm"
-                    data-page="${data.page - 1}"
+                    data-pg="${data.page - 1}"
                     ${data.page <= 1 ? raw("disabled") : ""}
                   >
                     ${icon("chevron-left", "i-sm")} ใหม่กว่า
@@ -9531,7 +10016,7 @@
                   <span>หน้า ${data.page}/${data.pages}</span>
                   <button
                     class="btn btn-sm"
-                    data-page="${data.page + 1}"
+                    data-pg="${data.page + 1}"
                     ${data.page >= data.pages ? raw("disabled") : ""}
                   >
                     เก่ากว่า ${icon("chevron-right", "i-sm")}
@@ -9582,9 +10067,9 @@
           st.level = lv.dataset.lv;
           return reload();
         }
-        const pg = e.target.closest("[data-page]");
+        const pg = e.target.closest("button[data-pg]");
         if (pg && !pg.disabled) {
-          st.page = Number(pg.dataset.page);
+          st.page = Number(pg.dataset.pg);
           return load();
         }
       });
@@ -9601,13 +10086,17 @@
         setHTML(
           body,
           html`<p class="muted">
-              ลบบันทึกกิจกรรมที่เก่ากว่าวันที่เลือก (ระบบลบอัตโนมัติเมื่อเกิน
-              ${A.settings.logRetentionDays} วันอยู่แล้ว) —
-              การลบนี้จะถูกบันทึกไว้เช่นกัน
+              ลบบันทึกที่เก่ากว่าวันที่เลือก ระบบเก็บบันทึก 30 วันล่าสุดไว้เสมอ
+              และลบอัตโนมัติเมื่อเกิน ${A.settings.logRetentionDays} วันอยู่แล้ว
+              การลบครั้งนี้จะถูกบันทึกไว้ด้วย
             </p>
             <label class="field"
               ><span>ลบบันทึกก่อนวันที่</span
-              ><input class="input" type="date" value="${def}"
+              ><input
+                class="input"
+                type="date"
+                value="${def}"
+                max="${addDays(bkkNow().date, -30)}"
             /></label>`,
         );
         const foot = document.createElement("div");
@@ -9734,7 +10223,10 @@
               <label class="drop" id="bk-drop"
                 >${icon("upload", "i-lg")}<b>เลือกไฟล์ .json หรือลากไฟล์มาวาง</b
                 ><span class="small">ไฟล์ที่ดาวน์โหลดจากระบบนี้เท่านั้น</span>
-                <input type="file" accept="application/json,.json" hidden
+                <input
+                  type="file"
+                  class="sr-only"
+                  accept="application/json,.json"
               /></label>
             </section>
             <section class="card panel span-2">
@@ -9826,21 +10318,33 @@
         try {
           data = JSON.parse(await file.text());
         } catch {
-          return toast("ไฟล์ไม่ใช่ JSON ที่ถูกต้อง", "danger");
+          return toast(
+            "อ่านไฟล์นี้ไม่ได้ เลือกไฟล์ .json ที่ดาวน์โหลดจากเมนูสำรองข้อมูล",
+            "danger",
+          );
         }
         const db = data.db || data;
         if (!db || !Array.isArray(db.bookings) || !Array.isArray(db.rooms))
-          return toast("ไฟล์นี้ไม่ใช่ไฟล์สำรองของระบบจองห้องประชุม", "danger");
+          return toast(
+            "ไฟล์นี้ไม่ใช่ไฟล์สำรองของระบบจองห้องประชุม เลือกไฟล์ .json ที่ดาวน์โหลดจากเมนูสำรองข้อมูล",
+            "danger",
+          );
         const hasLogs = Array.isArray(data.logs);
         const r = await confirmDialog({
           title: "ยืนยันการกู้คืนข้อมูล?",
-          message: `ไฟล์: ${file.name}\nส่งออกเมื่อ: ${data.exportedAt ? fmtDateTime(Date.parse(data.exportedAt)) : "-"}\nการจอง ${db.bookings.length} รายการ · ห้อง ${db.rooms.length} ห้อง${hasLogs ? ` · Log ${data.logs.length} รายการ` : ""}\n\nข้อมูลปัจจุบันจะถูกแทนที่`,
+          message: `ไฟล์: ${file.name}\nส่งออกเมื่อ: ${data.exportedAt ? fmtDateTime(Date.parse(data.exportedAt)) : "-"}\nการจอง ${db.bookings.length} รายการ · ห้อง ${db.rooms.length} ห้อง${hasLogs ? ` · บันทึกกิจกรรม ${data.logs.length} รายการ` : ""}\n\nการจอง ห้อง และการตั้งค่าปัจจุบันจะถูกแทนที่ด้วยข้อมูลในไฟล์ (บัญชีผู้ใช้คงเดิม) ระบบสำรองข้อมูลปัจจุบันไว้ให้ก่อนอัตโนมัติ`,
           confirmText: "กู้คืนข้อมูล",
+          cancelText: "ไม่กู้คืน",
           danger: true,
+          password: { hint: "ใส่รหัสผ่านของคุณเพื่อยืนยันการกู้คืน" },
           choices: hasLogs
             ? [
-                { value: "keep", label: "เก็บบันทึกกิจกรรมปัจจุบันไว้" },
-                { value: "logs", label: "กู้คืนบันทึกกิจกรรมจากไฟล์ด้วย" },
+                { value: "keep", label: "ไม่นำเข้าบันทึกกิจกรรมจากไฟล์" },
+                {
+                  value: "logs",
+                  label: "นำเข้าบันทึกกิจกรรมจากไฟล์ด้วย",
+                  hint: "เพิ่มต่อจากบันทึกปัจจุบัน ไม่ลบของเดิม",
+                },
               ]
             : null,
           iconName: "database",
@@ -9853,10 +10357,13 @@
               db,
               logs: hasLogs ? data.logs : undefined,
               restoreLogs: r.choice === "logs",
+              confirmPassword: r.password,
             },
           });
+          const skipped = res.skipped.bookings + res.skipped.rooms;
           toast(
-            `กู้คืนข้อมูลสำเร็จ (การจอง ${res.bookings} รายการ)`,
+            `กู้คืนข้อมูลแล้ว: การจอง ${res.bookings} รายการ ห้อง ${res.rooms} ห้อง` +
+              (skipped ? ` (ข้ามข้อมูลที่ไม่ถูกต้อง ${skipped} รายการ)` : ""),
             "success",
           );
           setTimeout(() => location.reload(), 900);
@@ -9880,8 +10387,12 @@
     // ------------------------------------------------------------------ CONNECT
     async function secConnect(el, ctx) {
       let sys = null;
+      let kioskKey = "";
       try {
-        sys = await api("/api/admin/system");
+        [sys, { key: kioskKey }] = await Promise.all([
+          api("/api/admin/system"),
+          api("/api/admin/kiosk-key"),
+        ]);
       } catch (err) {
         toastError(err);
       }
@@ -9949,18 +10460,33 @@
               <li>บนมือถือ กด “เพิ่มไปยังหน้าจอหลัก” จะได้ไอคอนเหมือนแอป</li>
             </ol>
           </section>
+          <section class="card panel" style="margin-bottom:16px">
+            <div class="panel-head">
+              <h3>${icon("key")} รหัสจอหน้าห้อง</h3>
+              <span class="spacer"></span>
+              <button class="btn btn-ghost btn-sm" id="c-rekey">
+                ${icon("refresh", "i-sm")} สร้างรหัสใหม่
+              </button>
+            </div>
+            <p class="small muted">
+              ลิงก์จอหน้าห้องด้านล่างมีรหัสจอฝังอยู่
+              ปุ่มเช็คอินบนจอจะใช้ได้เฉพาะแท็บเล็ตที่เปิดจากลิงก์นี้
+              หากแท็บเล็ตสูญหายหรือสงสัยว่ารหัสรั่วไหล ให้สร้างรหัสใหม่
+              แล้วเปิดลิงก์ใหม่บนจอทุกเครื่อง
+            </p>
+          </section>
           <div class="qr-grid stagger">
             ${card("หน้าจองห้องประชุม", `${base}/`, "สำหรับเจ้าหน้าที่ทุกคน")}
             ${rooms.map((r) =>
               card(
                 `จอหน้า${r.name}`,
-                `${base}/display.html?room=${r.id}`,
-                `${r.floor} · เปิดบนแท็บเล็ตหน้าห้อง`,
+                `${base}/display.html?room=${encodeURIComponent(r.id)}&key=${kioskKey}`,
+                `${r.floor} · เปิดบนแท็บเล็ตหน้าห้อง (ลิงก์นี้มีรหัสจอ ใช้เช็คอินได้)`,
               ),
             )}
             ${card(
               "จอรวมทุกห้อง (ล็อบบี้)",
-              `${base}/display.html`,
+              `${base}/display.html?key=${kioskKey}`,
               "แสดงสถานะทุกห้องบนจอเดียว",
             )}
             ${card("หน้าผู้ดูแลระบบ", `${base}/admin.html`, "เฉพาะผู้มีบัญชี")}
@@ -9971,6 +10497,32 @@
         const c = e.target.closest("[data-copy]");
         if (c && (await copyText(c.dataset.copy)))
           toast("คัดลอกแล้ว", "success");
+      };
+      $("#c-rekey", el).onclick = async () => {
+        const r = await confirmDialog({
+          title: "สร้างรหัสจอหน้าห้องใหม่?",
+          message:
+            "จอหน้าห้องทุกเครื่องจะเช็คอินไม่ได้ จนกว่าจะเปิดลิงก์ใหม่จากหน้านี้",
+          confirmText: "สร้างรหัสใหม่",
+          cancelText: "ใช้รหัสเดิม",
+          danger: true,
+          iconName: "key",
+          password: {},
+        });
+        if (!r) return;
+        try {
+          await api("/api/admin/kiosk-key", {
+            method: "POST",
+            body: { confirmPassword: r.password },
+          });
+          toast(
+            "สร้างรหัสจอใหม่แล้ว เปิดลิงก์ใหม่บนจอหน้าห้องทุกเครื่อง",
+            "success",
+          );
+          secConnect(el, ctx);
+        } catch (err) {
+          toastError(err);
+        }
       };
       $("#c-poster", el).onclick = () => {
         const s = A.settings;
@@ -10042,6 +10594,23 @@
     };
     const rootEl = $("#ds");
     const roomId = new URLSearchParams(location.search).get("room");
+    // รหัสจอหน้าห้อง: ได้จากลิงก์ที่ผู้ดูแลสร้าง (…&key=) เก็บไว้ในเครื่องแล้วลบออกจากแถบที่อยู่
+    const KIOSK_KEY = "br.kiosk.key";
+    {
+      const p = new URLSearchParams(location.search);
+      const k = p.get("key");
+      if (k && /^[A-Za-z0-9_-]{32,}$/.test(k)) {
+        store.set(KIOSK_KEY, k);
+        p.delete("key");
+        const qs = p.toString();
+        history.replaceState(
+          null,
+          "",
+          `${location.pathname}${qs ? `?${qs}` : ""}`,
+        );
+      }
+    }
+    const kioskKey = () => store.get(KIOSK_KEY, "");
     let list = [];
     let loadedDate = "";
     let first = true;
@@ -10302,14 +10871,19 @@
               </div>
               ${nowBlock(st)}
               <div class="ds-actions">
-                ${ci
+                ${ci && kioskKey()
                   ? html`<button
                       class="btn btn-checkin"
                       data-checkin="${ci.id}"
                     >
                       ${icon("check-circle")} เช็คอินเข้าใช้ห้อง
                     </button>`
-                  : ""}
+                  : ci
+                    ? html`<p class="ds-hint">
+                        ${icon("info", "i-sm")} ผู้จองเช็คอินได้จากหน้า
+                        “การจองของฉัน” บนมือถือ
+                      </p>`
+                    : ""}
                 ${r.active
                   ? html`<button class="btn btn-ghosty" data-book>
                       ${icon("calendar-plus")} จองห้องนี้
@@ -10355,10 +10929,8 @@
           </div>
           <p class="muted">
             สแกนด้วยกล้องมือถือที่เชื่อม Wi-Fi สำนักงาน เพื่อจอง${r.name}
+            บนอุปกรณ์ของคุณเอง
           </p>
-          <a class="btn btn-primary" href="${bookUrl}"
-            >${icon("calendar-plus")} หรือจองบนอุปกรณ์นี้</a
-          >
         </div>`;
         openModal({ title: `จอง${r.name}`, body, size: "sm" });
       });
@@ -10405,7 +10977,10 @@
           ${header()}
           <div class="ds-empty" style="align-self:center">
             ${icon("tablet")}<b>จอแสดงผลหน้าห้องถูกปิดใช้งาน</b
-            ><span>เปิดได้ที่หน้าผู้ดูแลระบบ เมนู “ตั้งค่าและฟังก์ชัน” หัวข้อจอแสดงผลหน้าห้อง</span>
+            ><span
+              >เปิดได้ที่หน้าผู้ดูแลระบบ เมนู “ตั้งค่าและฟังก์ชัน”
+              หัวข้อจอแสดงผลหน้าห้อง</span
+            >
           </div>
           ${footer()}
         </div>`,
@@ -10441,6 +11016,7 @@
             await api(`/api/bookings/${btn.dataset.checkin}/checkin`, {
               method: "POST",
               body: {},
+              headers: { "X-Kiosk-Key": kioskKey() },
             });
             toast("เช็คอินเรียบร้อย ขอให้การประชุมราบรื่น", "success");
             confetti({ count: 70 });
@@ -10483,7 +11059,11 @@
       S.serverUrls = cfg.serverUrls || [];
       setFeedback({ haptic: cfg.settings.hapticFeedback, sound: false });
       document.documentElement.dataset.brand = cfg.settings.themeColor;
-      document.documentElement.dataset.motion = cfg.settings.motionLevel;
+      const lvl = cfg.settings.motionLevel || "full";
+      document.documentElement.dataset.motion =
+        lvl === "full" && matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "reduced"
+          : lvl;
     }
 
     async function load() {

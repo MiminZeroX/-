@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("fs");
+const crypto = require("crypto");
 const path = require("path");
 const {
   DEFAULT_SETTINGS,
@@ -8,14 +9,19 @@ const {
   DEFAULT_DEPARTMENTS,
   fixedHolidays,
 } = require("./defaults");
-const { hashPassword, randomId } = require("./security");
+const { hashPasswordSync, randomId, randomPassword } = require("./security");
 const { bkkNow } = require("./time");
+const { sanitizeSettings, sanitizeBooking } = require("./sanitize");
+
+// รหัสการจองแบบสุ่ม (เดาลำดับไม่ได้) ไม่มีตัวที่สับสน เช่น 0/O 1/I
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 const MAX_LOGS = 50000;
 
+// ไฟล์ข้อมูลมีแฮชรหัสผ่านและเบอร์โทร จึงให้เฉพาะบัญชีที่รันระบบอ่านได้ (บน Linux/macOS)
 function writeAtomic(file, data) {
   const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, data);
+  fs.writeFileSync(tmp, data, { mode: 0o600 });
   fs.renameSync(tmp, file);
 }
 
@@ -29,12 +35,18 @@ function readJsonFile(file) {
 }
 
 class Store {
-  constructor(dataDir) {
+  constructor(dataDir, opts = {}) {
     this.dir = path.resolve(dataDir);
     this.dbFile = path.join(this.dir, "db.json");
     this.logFile = path.join(this.dir, "logs.json");
     this.backupDir = path.join(this.dir, "backups");
-    fs.mkdirSync(this.backupDir, { recursive: true });
+    this.initialPasswordFile = path.join(
+      this.dir,
+      "initial-admin-password.txt",
+    );
+    this.presetPassword = opts.initialPassword || "";
+    this.initialPassword = "";
+    fs.mkdirSync(this.backupDir, { recursive: true, mode: 0o700 });
     this.db = null;
     this.logs = [];
     this.logSeq = 0;
@@ -46,8 +58,13 @@ class Store {
     const raw = readJsonFile(this.dbFile);
     if (!raw) {
       this.firstRun = true;
-      this.db = Store.seed();
+      // ไม่มีรหัสผ่านเริ่มต้นตายตัว: สุ่มใหม่ทุกการติดตั้ง แสดงบนหน้าจอเซิร์ฟเวอร์และเก็บในไฟล์
+      // ซึ่งจะถูกลบทันทีที่ผู้ดูแลเปลี่ยนรหัสผ่าน
+      this.initialPassword = this.presetPassword || randomPassword();
+      this.db = Store.seed(this.initialPassword);
       this.flushDb();
+      if (!this.presetPassword)
+        this.writeInitialPassword("admin", this.initialPassword);
     } else {
       this.db = Store.normalize(raw);
     }
@@ -57,7 +74,31 @@ class Store {
     return this;
   }
 
-  static seed() {
+  writeInitialPassword(username, password) {
+    fs.writeFileSync(
+      this.initialPasswordFile,
+      [
+        "ระบบจองห้องประชุม สำนักงานเขตบางรัก — บัญชีผู้ดูแลเริ่มต้น",
+        `ชื่อผู้ใช้: ${username}`,
+        `รหัสผ่าน: ${password}`,
+        "",
+        "ระบบจะให้ตั้งรหัสผ่านใหม่เมื่อเข้าสู่ระบบครั้งแรก และจะลบไฟล์นี้ให้อัตโนมัติ",
+        "",
+      ].join("\r\n"),
+      { mode: 0o600 },
+    );
+  }
+
+  clearInitialPassword(username) {
+    if (username !== "admin") return;
+    try {
+      fs.unlinkSync(this.initialPasswordFile);
+    } catch {
+      /* ไม่มีไฟล์ */
+    }
+  }
+
+  static seed(initialPassword) {
     const year = Number(bkkNow().date.slice(0, 4));
     return Store.normalize({
       version: 1,
@@ -73,7 +114,7 @@ class Store {
           username: "admin",
           name: "ผู้ดูแลระบบ",
           role: "admin",
-          passHash: hashPassword("admin1234"),
+          passHash: hashPasswordSync(initialPassword || randomPassword()),
           mustChange: true,
           active: true,
           createdAt: Date.now(),
@@ -88,14 +129,8 @@ class Store {
   static normalize(raw) {
     const db = { ...raw };
     db.version = 1;
-    const settings = {};
-    for (const key of Object.keys(DEFAULT_SETTINGS)) {
-      settings[key] =
-        raw.settings && key in raw.settings
-          ? raw.settings[key]
-          : DEFAULT_SETTINGS[key];
-    }
-    db.settings = settings;
+    // ค่าที่ไม่ผ่านกฎ (ไฟล์ถูกแก้ไขหรือเสียหาย) จะใช้ค่าเริ่มต้นแทน
+    db.settings = sanitizeSettings(raw.settings).settings;
     db.rooms = Array.isArray(raw.rooms) ? raw.rooms : defaultRooms();
     db.rooms.forEach((r, i) => {
       r.equipment = Array.isArray(r.equipment) ? r.equipment : [];
@@ -113,13 +148,10 @@ class Store {
       ? raw.departments
       : [...DEFAULT_DEPARTMENTS];
     db.holidays = Array.isArray(raw.holidays) ? raw.holidays : [];
-    db.bookings = Array.isArray(raw.bookings) ? raw.bookings : [];
-    db.bookings.forEach((b) => {
-      b.tokenHashes = Array.isArray(b.tokenHashes) ? b.tokenHashes : [];
-      b.equipment = Array.isArray(b.equipment) ? b.equipment : [];
-      b.services = Array.isArray(b.services) ? b.services : [];
-      b.kind = b.kind === "block" ? "block" : "meeting";
-    });
+    // การจองที่วันที่/เวลา/สถานะไม่ถูกต้องจะถูกตัดออก (กันการเปรียบเทียบกับค่า NaN)
+    db.bookings = (Array.isArray(raw.bookings) ? raw.bookings : [])
+      .map(sanitizeBooking)
+      .filter(Boolean);
     db.admins = Array.isArray(raw.admins) ? raw.admins : [];
     db.counters =
       raw.counters && typeof raw.counters === "object" ? raw.counters : {};
@@ -185,6 +217,7 @@ class Store {
 
   pruneLogs() {
     const days = this.db.settings.logRetentionDays;
+    if (!Number.isFinite(days) || days < 1) return;
     const cutoff = Date.now() - days * 86400000;
     const before = this.logs.length;
     this.logs = this.logs.filter((l) => l.ts >= cutoff);
@@ -197,7 +230,14 @@ class Store {
     const beYear = (Number(now.date.slice(0, 4)) + 543) % 100;
     const key = `${String(beYear).padStart(2, "0")}${now.date.slice(5, 7)}`;
     this.db.counters[key] = (this.db.counters[key] || 0) + 1;
-    return `BR${key}-${String(this.db.counters[key]).padStart(4, "0")}`;
+    const used = new Set(this.db.bookings.map((b) => b.code));
+    for (;;) {
+      let tail = "";
+      for (let i = 0; i < 4; i++)
+        tail += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)];
+      const code = `BR${key}-${tail}`;
+      if (!used.has(code)) return code;
+    }
   }
 
   // ---------- สำรองข้อมูล ----------
@@ -224,7 +264,9 @@ class Store {
   }
 
   pruneBackups() {
-    const keepMs = this.db.settings.backupKeepDays * 86400000;
+    const days = this.db.settings.backupKeepDays;
+    if (!Number.isFinite(days) || days < 1) return;
+    const keepMs = days * 86400000;
     for (const f of this.listBackups()) {
       if (Date.now() - f.mtime > keepMs)
         fs.rmSync(path.join(this.backupDir, f.name), { force: true });

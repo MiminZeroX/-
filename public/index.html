@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="th" data-brand="green" data-theme="light" data-motion="full">
+<html lang="th" data-brand="blue" data-theme="light" data-motion="full">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>หน้าแรก · ระบบจองห้องประชุม · สำนักงานเขตบางรัก</title>
     <meta name="description" content="ระบบจองห้องประชุมออนไลน์ภายในสำนักงานเขตบางรัก ห้องประชุมเล็กชั้น 2 และห้องประชุมใหญ่ชั้น 4" />
-    <meta name="theme-color" content="#f3f6f4" />
+    <meta name="theme-color" content="#f5f5f7" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="จองห้องประชุม" />
@@ -17,7 +17,6 @@
   </head>
   <body data-app="user" data-page="home">
     <a class="skip-link" href="#view">ข้ามไปยังเนื้อหา</a>
-    <div class="app-bg" aria-hidden="true"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
 
     <header class="topbar" id="topbar">
       <a class="brand" href="index.html" aria-label="หน้าแรก ระบบจองห้องประชุม">
@@ -54,7 +53,8 @@
       <button class="tab-link" type="button" id="tab-prefs"><span class="tab-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></span><span>ตั้งค่า</span></button>
     </nav>
 
-    <div id="toasts"></div>
+    <div id="toasts" role="status" aria-live="polite"></div>
+    <div id="sr-alert" class="sr-only" role="alert"></div>
     <div id="modal-root"></div>
     <div id="print-root"></div>
     <noscript><p class="noscript">กรุณาเปิดใช้งาน JavaScript เพื่อใช้ระบบจองห้องประชุม</p></noscript>

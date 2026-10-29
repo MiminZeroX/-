@@ -67,7 +67,7 @@ const DEFAULT_SETTINGS = {
   ],
 
   // รูปลักษณ์และเอฟเฟกต์
-  themeColor: "green",
+  themeColor: "blue",
   defaultThemeMode: "auto",
   motionLevel: "full",
   hapticFeedback: true,

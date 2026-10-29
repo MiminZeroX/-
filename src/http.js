@@ -16,8 +16,12 @@ const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "same-origin",
   "X-Frame-Options": "SAMEORIGIN",
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "Permissions-Policy":
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), hid=(), interest-cohort=()",
   "Content-Security-Policy":
-    "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'",
+    "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'",
 };
 
 function sendJson(res, status, obj, headers = {}) {
@@ -42,8 +46,19 @@ function sendFile(res, status, body, contentType, filename, headers = {}) {
   res.end(body);
 }
 
+function tooLarge(req) {
+  // บอกให้ปิดการเชื่อมต่อหลังตอบ 413 เพื่อไม่ต้องรับข้อมูลที่เหลือ
+  req.tooLarge = true;
+  return new HttpError(413, "ข้อมูลที่ส่งมามีขนาดใหญ่เกินไป");
+}
+
 function readBody(req, limitBytes) {
   return new Promise((resolve, reject) => {
+    const declared = Number(req.headers["content-length"]);
+    if (declared > limitBytes) {
+      reject(tooLarge(req));
+      return;
+    }
     let size = 0;
     const chunks = [];
     let failed = false;
@@ -52,8 +67,9 @@ function readBody(req, limitBytes) {
       size += chunk.length;
       if (size > limitBytes) {
         failed = true;
-        reject(new HttpError(413, "ข้อมูลที่ส่งมามีขนาดใหญ่เกินไป"));
-        req.resume();
+        chunks.length = 0;
+        req.pause();
+        reject(tooLarge(req));
         return;
       }
       chunks.push(chunk);
@@ -64,16 +80,34 @@ function readBody(req, limitBytes) {
 }
 
 async function readJson(req, limitBytes = 256 * 1024) {
+  const type = String(req.headers["content-type"] || "").toLowerCase();
+  const hasBody =
+    Number(req.headers["content-length"]) > 0 ||
+    req.headers["transfer-encoding"] !== undefined;
+  // รับเฉพาะ JSON (ฟอร์ม HTML และ text/plain จากเว็บอื่นจะถูกปฏิเสธ)
+  if (hasBody && !/^application\/json\s*(;|$)/.test(type)) {
+    req.resume();
+    throw new HttpError(415, "รูปแบบข้อมูลไม่ถูกต้อง (ต้องเป็น JSON)");
+  }
   const buf = await readBody(req, limitBytes);
   if (!buf.length) return {};
   try {
     const data = JSON.parse(buf.toString("utf8"));
-    if (data === null || typeof data !== "object")
+    if (data === null || typeof data !== "object" || Array.isArray(data))
       throw new Error("not object");
     return data;
   } catch {
     throw new HttpError(400, "รูปแบบข้อมูลไม่ถูกต้อง");
   }
+}
+
+function redirect(res, location) {
+  res.writeHead(302, {
+    ...SECURITY_HEADERS,
+    Location: location,
+    "Cache-Control": "no-store",
+  });
+  res.end();
 }
 
 function parseCookies(header) {
@@ -97,6 +131,49 @@ function parseCookies(header) {
 function clientIp(req) {
   const ip = req.socket?.remoteAddress || "";
   return ip.startsWith("::ffff:") ? ip.slice(7) : ip;
+}
+
+// ---------- ตรวจชื่อโฮสต์ (กัน DNS rebinding) ----------
+// เว็บภายนอกที่หลอกให้โดเมนของตนชี้มาที่ IP ภายใน จะส่ง Host เป็นโดเมนของตนเอง
+// จึงรับเฉพาะ IP ตรง ๆ, localhost, ชื่อเครื่องนี้ และชื่อที่ผู้ดูแลกำหนดเพิ่ม (ALLOWED_HOSTS)
+const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/;
+
+function hostName(header) {
+  const h = String(header || "")
+    .trim()
+    .toLowerCase();
+  if (!h) return "";
+  if (h.startsWith("[")) {
+    const end = h.indexOf("]");
+    return end > 0 ? h.slice(0, end + 1) : "";
+  }
+  return h.replace(/:\d+$/, "").replace(/\.$/, "");
+}
+
+function createHostCheck(machineName = "", extra = []) {
+  const names = new Set(["localhost"]);
+  const base = String(machineName || "").toLowerCase();
+  if (base) {
+    names.add(base);
+    for (const suffix of [".local", ".lan", ".home", ".localdomain"])
+      names.add(base + suffix);
+  }
+  const suffixes = [];
+  for (const raw of extra) {
+    const v = String(raw || "")
+      .trim()
+      .toLowerCase();
+    if (!v) continue;
+    if (v.startsWith("*.")) suffixes.push(v.slice(1));
+    else names.add(v);
+  }
+  return function allowed(header) {
+    const h = hostName(header);
+    if (!h) return false;
+    if (IPV4_RE.test(h) || h.startsWith("[")) return true;
+    if (names.has(h) || h.endsWith(".localhost")) return true;
+    return suffixes.some((s) => h.endsWith(s));
+  };
 }
 
 // ---------- ไฟล์ static ----------
@@ -126,6 +203,35 @@ const COMPRESSIBLE = new Set([
 function createStatic(rootDir) {
   const root = path.resolve(rootDir);
   const cache = new Map(); // filePath -> { mtimeMs, size, etag, raw, gz }
+  // รายชื่อไฟล์จริงในโฟลเดอร์ public (ตัวพิมพ์ตรงทุกตัวอักษร) — ไม่รับชื่อแปลง เช่น ตัวพิมพ์ใหญ่/เล็กต่างกัน
+  // ชื่อย่อ 8.3 หรือ ::$DATA บน Windows ซึ่งจะทำให้แคชโตไม่จำกัด
+  let index = new Map();
+  let indexedAt = 0;
+  function buildIndex() {
+    const next = new Map();
+    const walk = (dir, prefix) => {
+      for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (ent.name.startsWith(".")) continue;
+        const full = path.join(dir, ent.name);
+        const url = `${prefix}/${ent.name}`;
+        if (ent.isDirectory()) walk(full, url);
+        else if (ent.isFile()) next.set(url, full);
+      }
+    };
+    walk(root, "");
+    index = next;
+    indexedAt = Date.now();
+  }
+  buildIndex();
+  function resolveFile(urlPath) {
+    let file = index.get(urlPath);
+    // ไฟล์ที่เพิ่มหลังเปิดระบบ: สร้างรายชื่อใหม่ได้ไม่เกินทุก 5 วินาที
+    if (!file && Date.now() - indexedAt > 5000) {
+      buildIndex();
+      file = index.get(urlPath);
+    }
+    return file || null;
+  }
 
   function load(filePath, stat) {
     const hit = cache.get(filePath);
@@ -155,8 +261,8 @@ function createStatic(rootDir) {
       return false;
     }
     if (rel.includes("\0")) return false;
-    const filePath = path.resolve(root, `.${path.posix.normalize(`/${rel}`)}`);
-    if (!filePath.startsWith(root + path.sep)) return false;
+    const filePath = resolveFile(path.posix.normalize(`/${rel}`));
+    if (!filePath) return false;
     let stat;
     try {
       stat = fs.statSync(filePath);
@@ -198,6 +304,9 @@ module.exports = {
   sendFile,
   readBody,
   readJson,
+  redirect,
+  createHostCheck,
+  hostName,
   parseCookies,
   clientIp,
   createStatic,

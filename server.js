@@ -4,8 +4,14 @@
 // ระบบจองห้องประชุม สำนักงานเขตบางรัก
 // เริ่มระบบ:  node server.js   (หรือดับเบิลคลิก start-windows.bat)
 // ตัวเลือก:   --port=3000  --host=0.0.0.0  --data=./data   (หรือใช้ตัวแปร PORT, HOST, DATA_DIR)
+//            --allowed-hosts=booking.bangrak.local,*.example.lan   (ชื่อโดเมนภายในที่ใช้เปิดระบบ
+//            นอกเหนือจาก IP และชื่อเครื่อง หรือใช้ตัวแปร ALLOWED_HOSTS)
+//            --tls-cert=cert.pem --tls-key=key.pem   (เปิด HTTPS ด้วยใบรับรองของหน่วยงาน/mkcert
+//            หรือใช้ตัวแปร TLS_CERT, TLS_KEY — แนะนำเมื่อใช้ Wi-Fi ร่วมกับผู้มาติดต่อ)
 
 const http = require("http");
+const https = require("https");
+const fs = require("fs");
 const path = require("path");
 const { createApp, lanAddresses } = require("./src/app");
 
@@ -28,9 +34,38 @@ const dataDir = path.resolve(
   arg("data", process.env.DATA_DIR || path.join(__dirname, "data")),
 );
 
-const app = createApp({ dataDir, port });
-const server = http.createServer((req, res) => app.handle(req, res));
+const allowedHosts = String(
+  arg("allowed-hosts", process.env.ALLOWED_HOSTS || ""),
+)
+  .split(",")
+  .map((h) => h.trim())
+  .filter(Boolean);
+
+const tlsCert = arg("tls-cert", process.env.TLS_CERT || "");
+const tlsKey = arg("tls-key", process.env.TLS_KEY || "");
+let tls = null;
+if (tlsCert || tlsKey) {
+  try {
+    tls = { cert: fs.readFileSync(tlsCert), key: fs.readFileSync(tlsKey) };
+  } catch (err) {
+    console.error(`\n  อ่านไฟล์ใบรับรอง HTTPS ไม่สำเร็จ: ${err.message}\n`);
+    process.exit(1);
+  }
+}
+const scheme = tls ? "https" : "http";
+
+// ไฟล์ server.pid บอกสคริปต์อื่น (เช่น reset-admin) ว่าระบบกำลังทำงานอยู่
+const pidFile = path.join(dataDir, "server.pid");
+
+const app = createApp({ dataDir, port, allowedHosts, secure: !!tls });
+const handler = (req, res) => app.handle(req, res);
+const server = tls
+  ? https.createServer({ ...tls, minVersion: "TLSv1.2" }, handler)
+  : http.createServer(handler);
 server.keepAliveTimeout = 65000;
+// กันการเปิดการเชื่อมต่อค้างไว้เพื่อให้เซิร์ฟเวอร์เต็ม (slowloris)
+server.headersTimeout = 20000;
+server.requestTimeout = 120000;
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
@@ -48,9 +83,14 @@ server.on("error", (err) => {
 });
 
 server.listen(port, host, () => {
-  app.start({ port });
+  app.start({ port, scheme });
+  try {
+    fs.writeFileSync(pidFile, String(process.pid));
+  } catch {
+    /* ไม่สำคัญ */
+  }
   const urls = lanAddresses().map(
-    (ip) => `http://${ip}${port === 80 ? "" : `:${port}`}`,
+    (ip) => `${scheme}://${ip}${port === (tls ? 443 : 80) ? "" : `:${port}`}`,
   );
   const line = "-".repeat(58);
   const out = [
@@ -64,27 +104,46 @@ server.listen(port, host, () => {
     ...(urls.length
       ? urls.map((u) => `     ${u}`)
       : ["     (ไม่พบเครือข่าย — ตรวจสอบการเชื่อมต่อ Wi-Fi/LAN)"]),
-    `     http://localhost${port === 80 ? "" : `:${port}`}   (บนเครื่องนี้)`,
+    `     ${scheme}://localhost${port === (tls ? 443 : 80) ? "" : `:${port}`}   (บนเครื่องนี้)`,
     "",
-    `   หน้าผู้ดูแลระบบ :  ${urls[0] || `http://localhost:${port}`}/admin.html`,
-    `   จอแสดงผลหน้าห้อง:  ${urls[0] || `http://localhost:${port}`}/display.html`,
+    `   หน้าผู้ดูแลระบบ :  ${urls[0] || `${scheme}://localhost:${port}`}/admin.html`,
+    `   จอแสดงผลหน้าห้อง:  ${urls[0] || `${scheme}://localhost:${port}`}/display.html`,
     `   เก็บข้อมูลที่     :  ${dataDir}`,
   ];
-  if (app.firstRun) {
+  if (app.firstRun && app.initialPassword) {
     out.push(
       "",
-      "   ติดตั้งครั้งแรก — บัญชีผู้ดูแล:  admin / admin1234",
-      "     (ระบบจะให้เปลี่ยนรหัสผ่านเมื่อเข้าสู่ระบบครั้งแรก)",
+      "   ติดตั้งครั้งแรก — บัญชีผู้ดูแลเริ่มต้น",
+      `     ชื่อผู้ใช้:  admin`,
+      `     รหัสผ่าน:  ${app.initialPassword}`,
+      `     (บันทึกไว้ที่ ${path.join(dataDir, "initial-admin-password.txt")} ด้วย`,
+      "      ระบบจะให้ตั้งรหัสผ่านใหม่เมื่อเข้าสู่ระบบครั้งแรก แล้วลบไฟล์นี้ให้อัตโนมัติ)",
     );
   }
+  if (!tls)
+    out.push(
+      "",
+      "   หมายเหตุ: ใช้ HTTP ธรรมดา — หาก Wi-Fi นี้ใช้ร่วมกับผู้มาติดต่อ แนะนำให้เปิด HTTPS",
+      "   (ดูวิธีใน README หัวข้อ “เปิดใช้ HTTPS”)",
+    );
   out.push("", "   กด Ctrl + C เพื่อหยุดระบบ", `  ${line}`, "");
   console.log(out.join("\n"));
 });
+
+function removePid() {
+  try {
+    if (fs.readFileSync(pidFile, "utf8") === String(process.pid))
+      fs.unlinkSync(pidFile);
+  } catch {
+    /* ไม่มีไฟล์ */
+  }
+}
 
 let stopping = false;
 function shutdown() {
   if (stopping) return;
   stopping = true;
+  removePid();
   console.log("\n  กำลังบันทึกข้อมูลและปิดระบบ...");
   try {
     app.stop();
@@ -96,6 +155,20 @@ function shutdown() {
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+// ข้อผิดพลาดที่ไม่ได้ดักไว้: บันทึก แล้วปิดระบบให้สคริปต์เริ่มระบบเปิดใหม่ในสถานะที่สะอาด
 process.on("uncaughtException", (err) => {
   console.error("[uncaught]", err);
+  try {
+    app.store.addLog({
+      level: "error",
+      action: "system.crash",
+      detail: `ระบบหยุดเพราะข้อผิดพลาด: ${String(err && err.message).slice(0, 300)}`,
+      actor: "ระบบ",
+    });
+    app.stop();
+  } catch {
+    /* บันทึกไม่ได้ */
+  }
+  removePid();
+  process.exit(1);
 });

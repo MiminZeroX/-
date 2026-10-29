@@ -36,83 +36,85 @@
 }
 
 /* ----------------------------------------------------------------- tokens */
+/* โทนสีแบบหน้าเว็บผลิตภัณฑ์: พื้นเทาอ่อนเป็นกลาง ตัวอักษรเข้ม ปุ่มหลักสีเดียว
+   ค่าคอนทราสต์ผ่าน WCAG AA ทุกคู่ (ข้อความรอง ≥ 4.5:1, เส้นขอบช่องกรอก ≥ 3:1) */
 :root {
   --font:
-    "Anuphan", "Leelawadee UI", "Noto Sans Thai", "Thonburi", "Sukhumvit Set",
-    Tahoma, system-ui, sans-serif;
+    "Anuphan", "SF Pro Display", "Leelawadee UI", "Noto Sans Thai", "Thonburi",
+    "Sukhumvit Set", Tahoma, system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
-  --radius-xs: 6px;
-  --radius-sm: 10px;
-  --radius: 14px;
-  --radius-lg: 20px;
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius: 18px;
+  --radius-lg: 22px;
   --radius-xl: 28px;
+  --radius-pill: 980px;
 
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
   --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
   --t1: 120ms;
-  --t2: 220ms;
-  --t3: 380ms;
-  --t4: 620ms;
+  --t2: 200ms;
+  --t3: 340ms;
+  --t4: 600ms;
 
-  /* brand (ค่าเริ่มต้น: เขียว กทม.) */
-  --brand: #0b7a4b;
-  --brand-strong: #075c38;
-  --brand-hi: #12a368;
+  /* brand (ค่าเริ่มต้น: น้ำเงิน) */
+  --brand: #0071e3;
+  --brand-strong: #0062c4;
+  --brand-hi: #2997ff;
   --on-brand: #ffffff;
-  --accent: #c9971c;
+  --accent: #bf8a1d;
 
   /* surfaces */
-  --bg: #f3f6f4;
-  --bg-grad-1: #e6f2ec;
-  --bg-grad-2: #f6f1e4;
+  --bg: #f5f5f7;
+  --bg-grad-1: #f5f5f7;
+  --bg-grad-2: #f5f5f7;
   --surface: #ffffff;
-  --surface-2: #f2f5f3;
-  --surface-3: #e8eeeb;
-  --glass: rgba(255, 255, 255, 0.72);
-  --border: #dfe6e2;
-  --border-strong: #c9d4cf;
-  --text: #0f1b16;
-  --text-2: #46564f;
-  --text-3: #7d8c86;
-  --focus: color-mix(in srgb, var(--brand) 45%, transparent);
+  --surface-2: #f5f5f7;
+  --surface-3: #e8e8ed;
+  --glass: rgba(251, 251, 253, 0.78);
+  --border: #e3e3e8;
+  --border-strong: #86868b;
+  --text: #1d1d1f;
+  --text-2: #424245;
+  --text-3: #6e6e73;
+  --focus: var(--brand);
 
-  --ok: #15803d;
-  --warn: #b45309;
-  --danger: #dc2626;
-  --info: #2563eb;
-  --ok-soft: color-mix(in srgb, var(--ok) 12%, var(--surface));
-  --warn-soft: color-mix(in srgb, #f59e0b 16%, var(--surface));
-  --danger-soft: color-mix(in srgb, var(--danger) 11%, var(--surface));
-  --info-soft: color-mix(in srgb, var(--info) 11%, var(--surface));
-  --brand-soft: color-mix(in srgb, var(--brand) 11%, var(--surface));
-  --brand-softer: color-mix(in srgb, var(--brand) 6%, var(--surface));
-  --brand-ink: color-mix(in srgb, var(--brand) 78%, #000);
+  --ok: #1d7a3a;
+  --warn: #a35200;
+  --danger: #d70015;
+  --info: #0066cc;
+  --ok-ink: #166534;
+  --warn-ink: #92400e;
+  --danger-ink: #b91c1c;
+  --info-ink: #1d4ed8;
+  --ok-soft: color-mix(in srgb, #34c759 14%, var(--surface));
+  --warn-soft: color-mix(in srgb, #ff9f0a 16%, var(--surface));
+  --danger-soft: color-mix(in srgb, #ff3b30 11%, var(--surface));
+  --info-soft: color-mix(in srgb, #0a84ff 11%, var(--surface));
+  --brand-soft: color-mix(in srgb, var(--brand) 10%, var(--surface));
+  --brand-softer: color-mix(in srgb, var(--brand) 5%, var(--surface));
+  --brand-ink: color-mix(in srgb, var(--brand) 82%, #000);
 
-  --shadow-1:
-    0 1px 2px rgba(15, 27, 22, 0.06), 0 1px 3px rgba(15, 27, 22, 0.05);
-  --shadow-2:
-    0 4px 10px -2px rgba(15, 27, 22, 0.08),
-    0 2px 4px -2px rgba(15, 27, 22, 0.05);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-2: 0 4px 18px rgba(0, 0, 0, 0.06);
   --shadow-3:
-    0 18px 40px -12px rgba(15, 27, 22, 0.22),
-    0 6px 14px -6px rgba(15, 27, 22, 0.1);
-  --shadow-brand: 0 10px 24px -10px
-    color-mix(in srgb, var(--brand) 70%, transparent);
+    0 24px 60px -18px rgba(0, 0, 0, 0.22), 0 8px 20px -10px rgba(0, 0, 0, 0.1);
+  --shadow-brand: none;
 
   color-scheme: light;
 }
 
+[data-brand="green"] {
+  --brand: #0b7a4b;
+  --brand-strong: #075c38;
+  --brand-hi: #12a368;
+}
 [data-brand="teal"] {
   --brand: #0f766e;
   --brand-strong: #0b5a54;
   --brand-hi: #14a394;
-}
-[data-brand="blue"] {
-  --brand: #1d4ed8;
-  --brand-strong: #1e3a8a;
-  --brand-hi: #3b82f6;
 }
 [data-brand="indigo"] {
   --brand: #4338ca;
@@ -140,77 +142,44 @@
   --brand-hi: #ca8a04;
 }
 
+/* โหมดมืด: พื้นดำสนิท การ์ดเทาเข้ม ปุ่มคงสีเดิมเพื่อให้ตัวอักษรขาวอ่านชัด */
 [data-theme="dark"] {
-  --brand: #34c88a;
-  --brand-strong: #22a56f;
-  --brand-hi: #6ee7b7;
-  --on-brand: #04170f;
+  --brand-ink: color-mix(in srgb, var(--brand-hi) 70%, #fff);
   --accent: #e7b743;
 
-  --bg: #0a110e;
-  --bg-grad-1: #0e1d17;
-  --bg-grad-2: #17150d;
-  --surface: #111a16;
-  --surface-2: #16211c;
-  --surface-3: #1d2a24;
-  --glass: rgba(17, 26, 22, 0.72);
-  --border: #23322b;
-  --border-strong: #31443b;
-  --text: #e7efeb;
-  --text-2: #a8b7b0;
-  --text-3: #6f817a;
+  --bg: #000000;
+  --bg-grad-1: #000000;
+  --bg-grad-2: #000000;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --surface-3: #3a3a3c;
+  --glass: rgba(22, 22, 23, 0.78);
+  --border: #38383a;
+  --border-strong: #7c7c80;
+  --text: #f5f5f7;
+  --text-2: #c7c7cc;
+  --text-3: #98989d;
+  --focus: var(--brand-hi);
 
-  --ok: #4ade80;
-  --warn: #fbbf24;
-  --danger: #f87171;
-  --info: #60a5fa;
-  --brand-ink: color-mix(in srgb, var(--brand) 80%, #fff);
+  --ok: #30d158;
+  --warn: #ffb340;
+  --danger: #ff6961;
+  --info: #64b5ff;
+  --ok-ink: #4ade80;
+  --warn-ink: #fbbf24;
+  --danger-ink: #ff8a80;
+  --info-ink: #8cc8ff;
+  --ok-soft: color-mix(in srgb, #30d158 16%, var(--surface));
+  --warn-soft: color-mix(in srgb, #ffb340 16%, var(--surface));
+  --danger-soft: color-mix(in srgb, #ff6961 16%, var(--surface));
+  --info-soft: color-mix(in srgb, #64b5ff 16%, var(--surface));
+  --brand-soft: color-mix(in srgb, var(--brand-hi) 18%, var(--surface));
+  --brand-softer: color-mix(in srgb, var(--brand-hi) 9%, var(--surface));
 
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 4px 12px -2px rgba(0, 0, 0, 0.45);
-  --shadow-3: 0 24px 48px -12px rgba(0, 0, 0, 0.6);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 6px 20px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 28px 64px -16px rgba(0, 0, 0, 0.8);
   color-scheme: dark;
-}
-[data-theme="dark"][data-brand="teal"] {
-  --brand: #2dd4bf;
-  --brand-strong: #14b8a6;
-  --brand-hi: #5eead4;
-}
-[data-theme="dark"][data-brand="blue"] {
-  --brand: #60a5fa;
-  --brand-strong: #3b82f6;
-  --brand-hi: #93c5fd;
-  --on-brand: #06142e;
-}
-[data-theme="dark"][data-brand="indigo"] {
-  --brand: #818cf8;
-  --brand-strong: #6366f1;
-  --brand-hi: #a5b4fc;
-  --on-brand: #0d0b2e;
-}
-[data-theme="dark"][data-brand="purple"] {
-  --brand: #c084fc;
-  --brand-strong: #a855f7;
-  --brand-hi: #d8b4fe;
-  --on-brand: #1d0533;
-}
-[data-theme="dark"][data-brand="rose"] {
-  --brand: #fb7185;
-  --brand-strong: #f43f5e;
-  --brand-hi: #fda4af;
-  --on-brand: #2b0510;
-}
-[data-theme="dark"][data-brand="orange"] {
-  --brand: #fb923c;
-  --brand-strong: #f97316;
-  --brand-hi: #fdba74;
-  --on-brand: #2b1104;
-}
-[data-theme="dark"][data-brand="gold"] {
-  --brand: #facc15;
-  --brand-strong: #eab308;
-  --brand-hi: #fde047;
-  --on-brand: #2a1f02;
 }
 
 [data-motion="reduced"] {
@@ -231,6 +200,14 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   scroll-behavior: smooth;
+  /* เลื่อนหา/โฟกัสแล้วไม่ให้ถูกแถบด้านบนและแถบปุ่ม/แท็บด้านล่างบัง */
+  scroll-padding-top: calc(var(--topbar-h, 56px) + 12px);
+  scroll-padding-bottom: 96px;
+}
+@media (max-width: 899px) {
+  html {
+    scroll-padding-bottom: 170px;
+  }
 }
 [data-motion="off"],
 [data-motion="reduced"] {
@@ -382,6 +359,7 @@ button {
 }
 
 /* ----------------------------------------------------------------- buttons */
+/* ปุ่มทรงแคปซูล สีเรียบ ไม่มีเงาหนัก กดแล้วยุบเล็กน้อย */
 .btn {
   --btn-bg: var(--surface);
   --btn-fg: var(--text);
@@ -393,9 +371,9 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 42px;
-  padding: 9px 18px;
-  border-radius: 12px;
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--btn-bd);
   background: var(--btn-bg);
   color: var(--btn-fg);
@@ -407,75 +385,60 @@ button {
   user-select: none;
   -webkit-user-select: none;
   touch-action: manipulation;
-  box-shadow: var(--shadow-1);
   transition:
-    transform var(--t2) var(--ease-spring),
-    box-shadow var(--t2) var(--ease-out),
+    transform var(--t2) var(--ease-out),
     background-color var(--t2) var(--ease-out),
     border-color var(--t2),
     color var(--t2),
     opacity var(--t2);
 }
 .btn:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-2);
+  --btn-bg: var(--surface-2);
 }
 .btn:active {
-  transform: translateY(0) scale(0.96);
-  transition-duration: 90ms;
-  box-shadow: var(--shadow-1);
+  transform: scale(0.97);
+  transition-duration: 80ms;
 }
 .btn[disabled],
 .btn.is-disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   pointer-events: none;
-  box-shadow: none;
 }
 .btn-primary {
-  --btn-bg: linear-gradient(
-    135deg,
-    var(--brand-hi),
-    var(--brand) 55%,
-    var(--brand-strong)
-  );
+  --btn-bg: var(--brand);
   --btn-fg: var(--on-brand);
   --btn-bd: transparent;
-  background: var(--btn-bg);
-  box-shadow: var(--shadow-brand);
 }
 .btn-primary:hover {
-  box-shadow: 0 14px 28px -12px
-    color-mix(in srgb, var(--brand) 85%, transparent);
+  --btn-bg: var(--brand-strong);
 }
 .btn-soft {
   --btn-bg: var(--brand-soft);
   --btn-fg: var(--brand-ink);
   --btn-bd: transparent;
-  box-shadow: none;
 }
 .btn-soft:hover {
-  --btn-bg: color-mix(in srgb, var(--brand) 17%, var(--surface));
-  box-shadow: none;
+  --btn-bg: color-mix(in srgb, var(--brand) 16%, var(--surface));
 }
 .btn-ghost {
   --btn-bg: transparent;
   --btn-bd: transparent;
-  box-shadow: none;
 }
 .btn-ghost:hover {
-  --btn-bg: var(--surface-2);
-  box-shadow: none;
+  --btn-bg: color-mix(in srgb, var(--text) 6%, transparent);
 }
 .btn-danger {
   --btn-bg: var(--danger);
   --btn-fg: #fff;
   --btn-bd: transparent;
 }
+.btn-danger:hover {
+  --btn-bg: color-mix(in srgb, var(--danger) 86%, #000);
+}
 .btn-danger-soft {
   --btn-bg: var(--danger-soft);
-  --btn-fg: var(--danger);
+  --btn-fg: var(--danger-ink);
   --btn-bd: transparent;
-  box-shadow: none;
 }
 .btn-ok {
   --btn-bg: var(--ok);
@@ -484,65 +447,64 @@ button {
 }
 [data-theme="dark"] .btn-ok,
 [data-theme="dark"] .btn-danger {
-  --btn-fg: #0a0f0d;
+  --btn-fg: #0a0a0a;
 }
 .btn-ok-soft {
   --btn-bg: var(--ok-soft);
-  --btn-fg: var(--ok);
+  --btn-fg: var(--ok-ink);
   --btn-bd: transparent;
-  box-shadow: none;
 }
 .btn-lg {
-  min-height: 52px;
-  padding: 12px 24px;
-  font-size: 1.04rem;
-  border-radius: 14px;
+  min-height: 50px;
+  padding: 12px 26px;
+  font-size: 1.02rem;
 }
 .btn-sm {
   min-height: 34px;
-  padding: 6px 12px;
+  padding: 6px 14px;
   font-size: 0.86rem;
-  border-radius: 10px;
   gap: 6px;
 }
 .btn-block {
   width: 100%;
 }
-/* ปุ่มไอคอน: สี่เหลี่ยมจัตุรัส พื้นที่กดไม่น้อยกว่า 44px (เล็ก 40px) */
+/* ปุ่มไอคอน: วงกลม พื้นที่กดไม่น้อยกว่า 44px (เล็ก 40px) */
 .btn-icon {
   min-height: 44px;
   width: 44px;
   padding: 0;
-  border-radius: 12px;
 }
 .btn-icon.btn-sm {
   width: 40px;
   min-height: 40px;
 }
-
-/* แสงวิ่งบนปุ่มหลัก */
-.shine::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: linear-gradient(
-    110deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.38) 48%,
-    transparent 66%
-  );
-  transform: translateX(-120%);
-  animation: shine 4.2s var(--ease-soft) infinite 1.4s;
+@media (pointer: coarse) {
+  .btn-sm,
+  .btn-icon.btn-sm {
+    min-height: 44px;
+  }
+  .btn-icon.btn-sm {
+    width: 44px;
+  }
 }
-@keyframes shine {
-  0%,
-  70% {
-    transform: translateX(-120%);
-  }
-  100% {
-    transform: translateX(120%);
-  }
+
+/* ลิงก์ "ดูเพิ่มเติม ›" แบบหน้าผลิตภัณฑ์ */
+.link-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  font-weight: 500;
+  color: var(--brand-ink);
+  white-space: nowrap;
+}
+.link-more .i {
+  width: 1em;
+  height: 1em;
+  transition: transform var(--t2) var(--ease-out);
+}
+.link-more:hover .i {
+  transform: translateX(3px);
 }
 
 /* ripple */
@@ -606,7 +568,7 @@ button {
   color: var(--text-2);
 }
 .field .req {
-  color: var(--danger);
+  color: var(--danger-ink);
   margin-left: 2px;
 }
 .input,
@@ -615,8 +577,8 @@ button {
   width: 100%;
   min-height: 46px;
   padding: 10px 14px;
-  border-radius: 12px;
-  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
   background: var(--surface);
   color: var(--text);
   outline: none;
@@ -649,13 +611,13 @@ button {
 .input:hover,
 .select:hover,
 .textarea:hover {
-  border-color: var(--border-strong);
+  border-color: var(--text-2);
 }
 .input:focus,
 .select:focus,
 .textarea:focus {
   border-color: var(--brand);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 16%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 30%, transparent);
 }
 .input::placeholder,
 .textarea::placeholder {
@@ -669,7 +631,7 @@ button {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 13%, transparent);
 }
 .field-error {
-  color: var(--danger);
+  color: var(--danger-ink);
   font-size: 0.84rem;
   display: flex;
   align-items: center;
@@ -707,10 +669,16 @@ button {
 }
 .switch input {
   position: absolute;
+  z-index: 1;
   opacity: 0;
   inset: 0;
   margin: 0;
   cursor: pointer;
+}
+/* ส่วนที่มองเห็นไม่รับการคลิก ให้คลิกผ่านไปถึงช่องจริงด้านบน */
+.switch .track,
+.switch .thumb {
+  pointer-events: none;
 }
 .switch .track {
   position: absolute;
@@ -894,7 +862,7 @@ button.chip:active {
   transition: color var(--t2);
   white-space: nowrap;
 }
-.seg button[aria-selected="true"] {
+.seg button[aria-pressed="true"] {
   color: var(--text);
 }
 .seg .seg-ind {
@@ -965,9 +933,16 @@ button.chip:active {
 /* ----------------------------------------------------------------- surfaces */
 .card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-1);
+}
+@media (forced-colors: active) {
+  .card,
+  .room-card,
+  .agenda,
+  .hero-stats {
+    border: 1px solid CanvasText;
+  }
 }
 .card-pad {
   padding: 20px;
@@ -998,33 +973,33 @@ button.chip:active {
 .badge-approved,
 .badge-ok {
   background: var(--ok-soft);
-  color: var(--ok);
+  color: var(--ok-ink);
 }
 .badge-pending,
 .badge-warn {
   background: var(--warn-soft);
-  color: var(--warn);
+  color: var(--warn-ink);
 }
 .badge-rejected,
 .badge-danger {
   background: var(--danger-soft);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .badge-cancelled {
   background: var(--surface-3);
-  color: var(--text-3);
+  color: var(--text-2);
 }
 .badge-done {
   background: var(--surface-2);
   color: var(--text-2);
 }
 .badge-live {
-  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
-  color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger-ink);
 }
 .badge-info {
   background: var(--info-soft);
-  color: var(--info);
+  color: var(--info-ink);
 }
 .badge-brand {
   background: var(--brand-soft);
@@ -1039,7 +1014,7 @@ button.chip:active {
   border-radius: var(--radius);
   background: var(--info-soft);
   color: var(--text);
-  border: 1px solid color-mix(in srgb, var(--info) 22%, transparent);
+  border: 0;
   font-size: 0.93rem;
 }
 .notice > .i {
@@ -1083,8 +1058,7 @@ button.chip:active {
   display: grid;
   place-items: center;
   background: var(--brand-soft);
-  color: var(--brand);
-  animation: floaty 4s var(--ease-soft) infinite;
+  color: var(--brand-ink);
 }
 .empty-art .i {
   width: 40px;
@@ -1235,11 +1209,21 @@ button.chip:active {
   font-weight: 650;
 }
 .toast-x {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  min-height: 32px;
   border: 0;
   background: none;
-  color: var(--text-3);
+  color: var(--text-2);
   padding: 4px;
-  border-radius: 8px;
+  border-radius: 50%;
+}
+@media (pointer: coarse) {
+  .toast-x {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 .toast-x:hover {
   background: var(--surface-2);
@@ -1612,9 +1596,62 @@ body.modal-open {
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
 }
+/* ลดภาพเคลื่อนไหว: ไม่มีการเลื่อน/หมุน/กะพริบวนซ้ำ เหลือเพียงการจางเข้า-ออกสั้น ๆ */
 [data-motion="reduced"] .shine::after,
-[data-motion="reduced"] .empty-art {
-  animation: none;
+[data-motion="reduced"] .empty-art,
+[data-motion="reduced"] .clock-digits .colon,
+[data-motion="reduced"] .skel,
+[data-motion="reduced"] .status-pill .dot,
+[data-motion="reduced"] .day-seg,
+[data-motion="reduced"] .ripple,
+[data-motion="reduced"] .ds-bg i,
+[data-motion="reduced"] .btn-checkin,
+[data-motion="reduced"] .ds-ring,
+[data-motion="reduced"] .ds-ring::after,
+[data-motion="reduced"] .live-dot::before,
+[data-motion="reduced"] .ds-ring::before,
+[data-motion="reduced"] .ev.live::before,
+[data-motion="reduced"] .ds-foot .live::before {
+  animation: none !important;
+}
+[data-motion="reduced"]
+  :is(
+    .stagger > *,
+    .v-in-up,
+    .v-in-left,
+    .v-in-right,
+    .v-in-fade,
+    .ev,
+    .ds-item,
+    .time-summary,
+    .field-error,
+    .announce,
+    .toast,
+    .modal,
+    .nav-count
+  ) {
+  animation-name: fadeIn !important;
+}
+[data-motion="reduced"] :is(.v-out-up, .v-out-left, .v-out-right, .v-out-fade) {
+  animation-name: fadeOut !important;
+}
+[data-motion="reduced"]
+  :is(
+    .btn,
+    .room-card,
+    .tab-link .tab-ic,
+    .tab-fab,
+    .brand-mark,
+    .link-more .i,
+    .modal,
+    .toast
+  ) {
+  transform: none !important;
+}
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
 }
 
 /* ----------------------------------------------------------------- tables */
@@ -1682,13 +1719,12 @@ table.table {
   pointer-events: none;
 }
 
-
 /* =========================================================================
    หน้าผู้ใช้งาน (จองห้อง)
    ========================================================================= */
 
 :root {
-  --topbar-h: 68px;
+  --topbar-h: 56px;
   --page-max: 1240px;
   --gutter: clamp(16px, 3.2vw, 32px);
 }
@@ -1707,80 +1743,11 @@ table.table {
   top: 12px;
 }
 
-/* ---------- พื้นหลังเคลื่อนไหว ---------- */
-.app-bg {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  background:
-    radial-gradient(
-      1200px 600px at 10% -10%,
-      var(--bg-grad-1),
-      transparent 60%
-    ),
-    radial-gradient(900px 500px at 100% 0%, var(--bg-grad-2), transparent 55%),
-    var(--bg);
-}
-.blob {
-  position: absolute;
-  width: 46vmax;
-  height: 46vmax;
-  border-radius: 50%;
-  filter: blur(70px);
-  opacity: 0.32;
-  will-change: transform;
-}
-.b1 {
-  background: color-mix(in srgb, var(--brand) 40%, transparent);
-  top: -22vmax;
-  left: -14vmax;
-  animation: drift1 26s ease-in-out infinite;
-}
-.b2 {
-  background: color-mix(in srgb, var(--accent) 34%, transparent);
-  top: -18vmax;
-  right: -18vmax;
-  animation: drift2 32s ease-in-out infinite;
-}
-.b3 {
-  background: color-mix(in srgb, #38bdf8 22%, transparent);
-  bottom: -30vmax;
-  left: 30vw;
-  animation: drift1 38s ease-in-out infinite reverse;
-}
-[data-theme="dark"] .blob {
-  opacity: 0.18;
-}
-@keyframes drift1 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(6vw, 4vh) scale(1.1);
-  }
-}
-@keyframes drift2 {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1.05);
-  }
-  50% {
-    transform: translate(-5vw, 6vh) scale(0.95);
-  }
-}
-[data-motion="reduced"] .blob,
-[data-motion="off"] .blob {
-  animation: none;
-}
-
-/* ---------- topbar ---------- */
+/* ---------- แถบนำทางด้านบน (โปร่งแสงแบบกระจกฝ้า) ---------- */
 .topbar {
   position: sticky;
   top: 0;
   z-index: 50;
-  height: var(--topbar-h);
   display: flex;
   align-items: center;
   gap: 18px;
@@ -1788,46 +1755,40 @@ table.table {
   padding-top: env(safe-area-inset-top);
   height: calc(var(--topbar-h) + env(safe-area-inset-top));
   background: var(--glass);
-  backdrop-filter: saturate(1.6) blur(16px);
-  -webkit-backdrop-filter: saturate(1.6) blur(16px);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  transition: box-shadow var(--t3);
+  backdrop-filter: saturate(1.8) blur(20px);
+  -webkit-backdrop-filter: saturate(1.8) blur(20px);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t3);
 }
 .topbar.scrolled {
-  box-shadow: var(--shadow-2);
+  border-bottom-color: var(--border);
 }
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   color: var(--text);
   text-decoration: none !important;
   min-width: 0;
 }
 .brand-mark {
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   flex: none;
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: linear-gradient(
-    140deg,
-    var(--brand-hi),
-    var(--brand) 60%,
-    var(--brand-strong)
-  );
+  background: var(--brand);
   color: var(--on-brand);
-  box-shadow: var(--shadow-brand);
-  transition: transform var(--t3) var(--ease-spring);
+  transition: transform var(--t3) var(--ease-out);
 }
 .brand:hover .brand-mark {
-  transform: rotate(-6deg) scale(1.06);
+  transform: scale(1.06);
 }
 .brand-mark svg {
-  width: 26px;
-  height: 26px;
+  width: 20px;
+  height: 20px;
 }
 .brand-mark img {
   width: 100%;
@@ -1841,15 +1802,15 @@ table.table {
   min-width: 0;
 }
 .brand-text b {
-  font-size: 1.02rem;
-  font-weight: 680;
+  font-size: 0.98rem;
+  font-weight: 650;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .brand-text small {
-  color: var(--text-2);
-  font-size: 0.8rem;
+  color: var(--text-3);
+  font-size: 0.76rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1859,10 +1820,9 @@ table.table {
   position: relative;
   display: none;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   margin: 0 auto;
-  padding: 5px;
-  border-radius: 16px;
+  padding: 4px;
 }
 .nav-link {
   position: relative;
@@ -1871,31 +1831,37 @@ table.table {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 16px;
-  border-radius: 12px;
-  font-weight: 560;
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 0.92rem;
+  font-weight: 500;
   color: var(--text-2);
   text-decoration: none !important;
   transition: color var(--t2);
+}
+.nav-link .i {
+  display: none;
 }
 .nav-link:hover {
   color: var(--text);
 }
 .nav-link.active {
-  color: var(--brand-ink);
+  color: var(--text);
+  font-weight: 600;
 }
 .nav-ind {
   position: absolute;
   z-index: 0;
-  top: 5px;
-  bottom: 5px;
+  top: 4px;
+  bottom: 4px;
   left: 0;
   width: 0;
-  border-radius: 12px;
-  background: var(--brand-soft);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
   transition:
-    transform var(--t3) var(--ease-spring),
-    width var(--t3) var(--ease-spring),
+    transform var(--t3) var(--ease-out),
+    width var(--t3) var(--ease-out),
     opacity var(--t2);
 }
 .nav-count {
@@ -1914,17 +1880,15 @@ table.table {
 .top-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-left: auto;
 }
 .clock-chip {
   display: none;
-  padding: 6px 12px;
-  border-radius: 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  padding: 0 8px;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
   color: var(--text-2);
 }
 @media (min-width: 900px) {
@@ -1939,7 +1903,7 @@ table.table {
   }
 }
 
-/* ---------- bottom tab bar (มือถือ/แท็บเล็ต) ---------- */
+/* ---------- แถบแท็บด้านล่าง (มือถือ/แท็บเล็ต) ---------- */
 .bottomnav {
   position: fixed;
   left: 0;
@@ -1951,9 +1915,9 @@ table.table {
   align-items: end;
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
   background: var(--glass);
-  backdrop-filter: saturate(1.6) blur(18px);
-  -webkit-backdrop-filter: saturate(1.6) blur(18px);
-  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  backdrop-filter: saturate(1.8) blur(20px);
+  -webkit-backdrop-filter: saturate(1.8) blur(20px);
+  border-top: 1px solid var(--border);
 }
 .tab-link {
   position: relative;
@@ -1961,40 +1925,42 @@ table.table {
   display: grid;
   justify-items: center;
   gap: 2px;
-  padding: 6px 2px 4px;
+  min-height: 48px;
+  padding: 4px 2px;
   border: 0;
   background: none;
   border-radius: 14px;
   font-size: 0.72rem;
-  font-weight: 560;
-  color: var(--text-3);
+  font-weight: 500;
+  color: var(--text-2);
   text-decoration: none !important;
   transition: color var(--t2);
 }
 .tab-link .tab-ic {
   display: grid;
   place-items: center;
-  width: 52px;
-  height: 30px;
-  border-radius: 99px;
-  transition:
-    background-color var(--t3) var(--ease-out),
-    transform var(--t3) var(--ease-spring);
+  width: 44px;
+  height: 28px;
+  transition: transform var(--t3) var(--ease-spring);
+}
+.tab-link .tab-ic .i {
+  width: 24px;
+  height: 24px;
 }
 .tab-link.active {
   color: var(--brand-ink);
+  font-weight: 600;
 }
-.tab-link.active .tab-ic {
-  background: var(--brand-soft);
-  transform: translateY(-1px);
+.tab-link.active .tab-ic .i {
+  stroke-width: 2.4;
 }
 .tab-link:active .tab-ic {
   transform: scale(0.88);
 }
 .tab-dot {
   position: absolute;
-  top: 6px;
-  right: calc(50% - 20px);
+  top: 4px;
+  right: calc(50% - 18px);
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -2003,39 +1969,26 @@ table.table {
 }
 .tab-fab {
   justify-self: center;
-  margin-top: -26px;
-  width: 58px;
-  height: 58px;
-  border-radius: 20px;
+  margin-bottom: 4px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
   color: var(--on-brand);
-  background: linear-gradient(
-    140deg,
-    var(--brand-hi),
-    var(--brand) 60%,
-    var(--brand-strong)
-  );
-  box-shadow:
-    var(--shadow-brand),
-    0 0 0 5px var(--bg);
-  transition:
-    transform var(--t3) var(--ease-spring),
-    border-radius var(--t3);
+  background: var(--brand);
+  transition: transform var(--t3) var(--ease-spring);
   position: relative;
   overflow: hidden;
 }
 .tab-fab .i {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   stroke-width: 2.4;
   transition: transform var(--t3) var(--ease-spring);
 }
 .tab-fab:active {
   transform: scale(0.9);
-}
-.tab-fab.active {
-  border-radius: 50%;
 }
 .tab-fab.active .i {
   transform: rotate(90deg);
@@ -2100,15 +2053,32 @@ table.table {
   margin: 14px auto 0;
   padding: 0 var(--gutter);
 }
+/* ประกาศ: แถบบางจัดกลางแบบหน้าผลิตภัณฑ์ */
 .announce {
-  animation: rise var(--t4) var(--ease-out);
+  animation: fadeIn var(--t4) var(--ease-out);
 }
 .announce .notice {
-  box-shadow: var(--shadow-1);
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 0.9rem;
+  text-align: center;
+}
+.announce .notice > .i {
+  margin-top: 0;
+  color: var(--brand-ink);
 }
 .announce .notice-text {
-  flex: 1;
+  flex: 0 1 auto;
   white-space: pre-line;
+}
+.announce .notice .btn-icon {
+  flex: none;
+  margin-left: auto;
 }
 
 .site-foot {
@@ -2133,139 +2103,135 @@ table.table {
   gap: 6px;
 }
 
-/* ---------- hero ---------- */
+/* ---------- hero (แบบหน้าเปิดตัวผลิตภัณฑ์: ตัวอักษรใหญ่ จัดกลาง โล่ง) ---------- */
 .hero {
-  position: relative;
-  overflow: hidden;
   display: grid;
-  gap: 22px;
-  padding: clamp(22px, 4vw, 40px);
-  border-radius: var(--radius-xl);
-  color: #fff;
-  background:
-    radial-gradient(
-      800px 340px at 85% -20%,
-      color-mix(in srgb, var(--accent) 55%, transparent),
-      transparent 60%
-    ),
-    linear-gradient(
-      135deg,
-      var(--brand-strong),
-      var(--brand) 55%,
-      color-mix(in srgb, var(--brand-hi) 85%, #0ea5e9)
-    );
-  box-shadow: var(--shadow-3);
-  isolation: isolate;
-}
-[data-theme="dark"] .hero {
-  background:
-    radial-gradient(
-      800px 340px at 85% -20%,
-      color-mix(in srgb, var(--accent) 30%, transparent),
-      transparent 60%
-    ),
-    linear-gradient(
-      135deg,
-      #0b2a1e,
-      color-mix(in srgb, var(--brand) 38%, #0b1511) 60%,
-      #102a2a
-    );
-  border: 1px solid var(--border);
-}
-@media (min-width: 900px) {
-  .hero {
-    grid-template-columns: 1.35fr 1fr;
-    align-items: center;
-    min-height: 290px;
-  }
-}
-.hero-text {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  gap: 10px;
+  justify-items: center;
+  gap: 14px;
+  padding: clamp(28px, 7vw, 76px) 0 clamp(20px, 4vw, 36px);
+  text-align: center;
 }
 .eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  padding: 5px 12px;
-  border-radius: 99px;
-  font-size: 0.82rem;
+  margin: 0;
+  font-size: clamp(1rem, 0.92rem + 0.4vw, 1.2rem);
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  backdrop-filter: blur(6px);
+  color: var(--text-2);
 }
 .hero h1 {
-  color: #fff;
-  font-size: clamp(1.6rem, 1.1rem + 2.1vw, 2.55rem);
+  max-width: 16ch;
+  font-size: clamp(2.3rem, 1.4rem + 4.2vw, 4.4rem);
   font-weight: 700;
+  line-height: 1.22;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
 }
-.hero h1 .greet {
+.hero h1 .grad-text {
   display: block;
-  font-size: 0.55em;
-  font-weight: 500;
-  opacity: 0.9;
-  margin-bottom: 4px;
 }
-.hero-date {
-  opacity: 0.92;
-  font-size: 1.02rem;
+.grad-text {
+  background: linear-gradient(
+    100deg,
+    var(--brand) 10%,
+    color-mix(in srgb, var(--brand) 40%, #8e44ec) 55%,
+    #c2185b 95%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* เผื่อพื้นที่สระบน/ล่างของอักษรไทยไม่ให้ถูกตัด */
+  padding-block: 0.06em;
+}
+[data-theme="dark"] .grad-text {
+  background-image: linear-gradient(
+    100deg,
+    var(--brand-hi) 10%,
+    #bf8cff 55%,
+    #ff6fa8 95%
+  );
+}
+@media (forced-colors: active) {
+  .grad-text {
+    color: CanvasText;
+    background: none;
+  }
+}
+.hero-sub {
+  max-width: 34ch;
+  font-size: clamp(1.08rem, 0.98rem + 0.5vw, 1.38rem);
+  line-height: 1.5;
+  color: var(--text-2);
+  text-wrap: balance;
 }
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 22px;
+  margin-top: 6px;
 }
-.hero .btn-primary {
-  --btn-bg: #fff;
-  --btn-fg: var(--brand-strong);
-  background: #fff;
-  box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.5);
+.hero-actions .link-more {
+  font-size: 1.04rem;
 }
-[data-theme="dark"] .hero .btn-primary {
-  --btn-fg: #0b2a1e;
-}
-.hero .btn-glass {
-  --btn-bg: rgba(255, 255, 255, 0.14);
-  --btn-fg: #fff;
-  --btn-bd: rgba(255, 255, 255, 0.28);
-  backdrop-filter: blur(6px);
-  box-shadow: none;
-}
-.hero .btn-glass:hover {
-  --btn-bg: rgba(255, 255, 255, 0.24);
-}
-.hero-clock {
-  position: relative;
-  z-index: 2;
+.hero-stats {
   display: grid;
-  justify-items: start;
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 760px);
+  margin: clamp(18px, 4vw, 34px) 0 0;
+  padding: 0;
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  overflow: hidden;
 }
-@media (min-width: 900px) {
-  .hero-clock {
-    justify-items: end;
-    text-align: right;
+.hero-stats > div {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 18px 16px;
+  text-align: center;
+}
+.hero-stats > div:first-child {
+  grid-column: 1 / -1;
+  border-bottom: 1px solid var(--border);
+}
+.hero-stats > div + div + div {
+  border-left: 1px solid var(--border);
+}
+@media (min-width: 700px) {
+  .hero-stats {
+    grid-template-columns: 1.4fr 1fr 1fr;
+  }
+  .hero-stats > div:first-child {
+    grid-column: auto;
+    border-bottom: 0;
+  }
+  .hero-stats > div + div {
+    border-left: 1px solid var(--border);
   }
 }
-.clock-digits {
-  font-size: clamp(2.8rem, 2rem + 4vw, 4.6rem);
+.hero-stats dt {
+  order: 2;
+  font-size: 0.86rem;
+  color: var(--text-3);
+}
+.hero-stats dd {
+  margin: 0;
+  font-size: clamp(1.9rem, 1.5rem + 1.6vw, 2.6rem);
   font-weight: 700;
-  line-height: 1;
-  letter-spacing: -0.02em;
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
+}
+.clock-digits {
   display: flex;
+  justify-content: center;
   align-items: baseline;
+  letter-spacing: -0.01em;
 }
 .clock-digits .sec {
-  font-size: 0.42em;
-  opacity: 0.75;
-  margin-left: 6px;
+  font-size: 0.48em;
   font-weight: 600;
+  color: var(--text-3);
+  margin-left: 4px;
 }
 .clock-digits .colon {
   animation: blink 1s steps(1) infinite;
@@ -2275,104 +2241,11 @@ table.table {
     opacity: 0.35;
   }
 }
-.clock-caption {
-  font-size: 0.85rem;
-  opacity: 0.85;
-}
-.hero-stats {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.hero-stat {
-  min-width: 118px;
-  padding: 10px 14px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  backdrop-filter: blur(8px);
-  text-align: left;
-}
-.hero-stat b {
-  display: block;
-  font-size: 1.6rem;
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
-}
-.hero-stat span {
-  font-size: 0.8rem;
-  opacity: 0.88;
-}
-.skyline {
-  position: absolute;
-  z-index: 1;
-  left: 0;
-  right: 0;
-  bottom: -2px;
-  height: min(38%, 150px);
-  pointer-events: none;
-  opacity: 0.13;
-  color: #fff;
-}
-.skyline svg {
-  width: 100%;
-  height: 100%;
-}
-.skyline .wave {
-  animation: wave 9s ease-in-out infinite;
-  transform-origin: center;
-}
-.skyline .wave2 {
-  animation: wave 12s ease-in-out infinite reverse;
-}
-@keyframes wave {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  50% {
-    transform: translateX(-40px);
-  }
-}
-.hero-orb {
-  position: absolute;
-  z-index: 0;
-  width: 320px;
-  height: 320px;
-  right: -80px;
-  top: -120px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  animation: spinSlow 60s linear infinite;
-}
-.hero-orb::before {
-  content: "";
-  position: absolute;
-  inset: 40px;
-  border-radius: 50%;
-  border: 1px dashed rgba(255, 255, 255, 0.22);
-}
-.hero-orb::after {
-  content: "";
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  left: 50%;
-  top: -6px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 18px var(--accent);
-}
-@keyframes spinSlow {
-  to {
-    transform: rotate(360deg);
-  }
-}
 
-/* ---------- room cards ---------- */
+/* ---------- room cards (แบบการ์ดสินค้า) ---------- */
 .room-grid {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 @media (min-width: 760px) {
   .room-grid {
@@ -2386,105 +2259,79 @@ table.table {
 }
 .room-card {
   --room: var(--brand);
-  position: relative;
-  overflow: hidden;
   display: grid;
-  gap: 14px;
-  padding: 20px;
+  align-content: start;
+  gap: 18px;
+  padding: clamp(22px, 3vw, 34px);
   border-radius: var(--radius-xl);
   background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-1);
   transition:
-    transform var(--t3) var(--ease-spring),
-    box-shadow var(--t3) var(--ease-out),
-    border-color var(--t3);
-}
-.room-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 120px;
-  z-index: 0;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--room) 13%, transparent),
-    transparent
-  );
-  pointer-events: none;
-}
-.room-card > * {
-  position: relative;
-  z-index: 1;
+    transform var(--t3) var(--ease-out),
+    box-shadow var(--t3) var(--ease-out);
 }
 .room-card:hover {
-  transform: translateY(-3px);
+  transform: scale(1.01);
   box-shadow: var(--shadow-3);
-  border-color: color-mix(in srgb, var(--room) 40%, var(--border));
 }
-.room-top {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.room-floor {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 11px;
-  border-radius: 99px;
-  font-size: 0.8rem;
-  font-weight: 650;
-  background: color-mix(in srgb, var(--room) 14%, var(--surface));
-  color: color-mix(in srgb, var(--room) 80%, var(--text));
+.room-head {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
 }
 .room-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 8px;
+  border-radius: 18px;
   display: grid;
   place-items: center;
-  background: linear-gradient(
-    140deg,
-    color-mix(in srgb, var(--room) 70%, #fff),
-    var(--room)
-  );
-  color: #fff;
-  box-shadow: 0 10px 20px -10px var(--room);
+  background: color-mix(in srgb, var(--room) 14%, var(--surface));
+  color: var(--room);
+}
+[data-theme="dark"] .room-icon {
+  background: color-mix(in srgb, var(--room) 30%, var(--surface));
+  color: color-mix(in srgb, var(--room) 45%, #fff);
 }
 .room-icon .i {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
 }
-.room-title {
-  display: flex;
-  gap: 14px;
-  align-items: center;
+.room-floor {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-3);
 }
-.room-title h3 {
-  font-size: 1.22rem;
+.room-head h3 {
+  font-size: clamp(1.5rem, 1.25rem + 1vw, 1.95rem);
+  font-weight: 700;
+  line-height: 1.25;
 }
-.room-title p {
+.room-meta {
   color: var(--text-2);
-  font-size: 0.88rem;
+  font-size: 0.95rem;
+}
+.room-head .status-pill {
+  margin-top: 8px;
 }
 .room-desc {
   color: var(--text-2);
-  font-size: 0.92rem;
+  font-size: 0.95rem;
+  text-align: center;
+  text-wrap: balance;
 }
 
 .status-pill {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 12px;
-  border-radius: 99px;
-  font-size: 0.82rem;
-  font-weight: 650;
+  padding: 5px 13px;
+  border-radius: var(--radius-pill);
+  font-size: 0.84rem;
+  font-weight: 600;
   white-space: nowrap;
   background: var(--ok-soft);
-  color: var(--ok);
+  color: var(--ok-ink);
 }
 .status-pill .dot {
   width: 8px;
@@ -2495,16 +2342,16 @@ table.table {
 }
 .status-pill.busy {
   background: var(--danger-soft);
-  color: var(--danger);
+  color: var(--danger-ink);
 }
 .status-pill.soon {
   background: var(--warn-soft);
-  color: var(--warn);
+  color: var(--warn-ink);
 }
 .status-pill.closed,
 .status-pill.off {
   background: var(--surface-2);
-  color: var(--text-3);
+  color: var(--text-2);
 }
 .status-pill.closed .dot,
 .status-pill.off .dot {
@@ -2513,70 +2360,61 @@ table.table {
 
 .room-now {
   display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border-radius: 14px;
+  gap: 3px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
   background: var(--surface-2);
-  border: 1px solid var(--border);
-  min-height: 68px;
+  min-height: 76px;
 }
 .room-now .label {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--text-3);
   font-weight: 600;
 }
 .room-now b {
-  font-weight: 640;
+  font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .room-now .sub {
-  font-size: 0.86rem;
+  font-size: 0.88rem;
   color: var(--text-2);
 }
 .progress {
-  height: 6px;
+  height: 4px;
   border-radius: 99px;
   background: var(--surface-3);
   overflow: hidden;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 .progress > i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--room) 70%, #fff),
-    var(--room)
-  );
+  background: var(--room);
   transition: width 1s var(--ease-out);
 }
 
 .day-bar {
   display: grid;
-  gap: 4px;
+  gap: 6px;
 }
 .day-track {
   position: relative;
-  height: 14px;
+  height: 10px;
   border-radius: 99px;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--surface-2) 0 calc(10% - 1px),
-    var(--border) calc(10% - 1px) 10%
-  );
-  border: 1px solid var(--border);
+  background: var(--surface-2);
   overflow: hidden;
 }
 .day-seg {
   position: absolute;
-  top: 2px;
-  bottom: 2px;
+  top: 0;
+  bottom: 0;
   border-radius: 99px;
   background: var(--room);
-  opacity: 0.85;
+  /* ช่องว่าง 2px ระหว่างช่วงเวลาที่ติดกัน */
+  box-shadow: 0 0 0 1px var(--surface);
   transform-origin: left;
   animation: grow var(--t4) var(--ease-out) both;
 }
@@ -2584,7 +2422,7 @@ table.table {
   background: repeating-linear-gradient(
     45deg,
     var(--room) 0 4px,
-    color-mix(in srgb, var(--room) 45%, transparent) 4px 8px
+    color-mix(in srgb, var(--room) 40%, transparent) 4px 8px
   );
 }
 .day-seg.block {
@@ -2596,12 +2434,11 @@ table.table {
 }
 .day-now {
   position: absolute;
-  top: -2px;
-  bottom: -2px;
+  top: 0;
+  bottom: 0;
   width: 2px;
   background: var(--danger);
   border-radius: 2px;
-  box-shadow: 0 0 0 2px var(--surface);
 }
 @keyframes grow {
   from {
@@ -2614,39 +2451,46 @@ table.table {
 .day-ticks {
   display: flex;
   justify-content: space-between;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
+.room-equip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.86rem;
+  color: var(--text-2);
+}
+.room-equip li + li::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  margin: 0 10px;
+  border-radius: 50%;
+  background: var(--text-3);
+  vertical-align: middle;
+}
 .room-actions {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
-}
-.room-actions .btn {
-  flex: 1;
-}
-.room-actions .btn-primary {
-  --btn-bg: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--room) 75%, #fff),
-    var(--room)
-  );
-  background: var(--btn-bg);
-  box-shadow: 0 10px 22px -12px var(--room);
-  --btn-fg: #fff;
-}
-.room-card.inactive {
-  opacity: 0.8;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 20px;
 }
 .room-card.inactive .room-icon {
   filter: grayscale(1);
 }
 
-/* ---------- agenda ---------- */
+/* ---------- agenda (รายการแบบกลุ่ม เส้นคั่นบาง) ---------- */
 .two-col {
   display: grid;
-  gap: 24px;
+  gap: 28px;
 }
 @media (min-width: 980px) {
   .two-col {
@@ -2656,55 +2500,55 @@ table.table {
 }
 .agenda {
   display: grid;
-  gap: 10px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.agenda:has(> .empty) {
+  background: none;
+}
+.agenda > .skel {
+  border-radius: 0;
+  margin: 1px 0;
 }
 .agenda-item {
   --room: var(--brand);
   position: relative;
-  overflow: hidden;
   display: grid;
-  grid-template-columns: 74px 1fr auto;
+  grid-template-columns: 8px 64px 1fr auto;
   gap: 14px;
   align-items: center;
-  padding: 12px 16px 12px 18px;
-  border-radius: 16px;
+  min-height: 64px;
+  padding: 12px 18px;
+  border: 0;
   background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-1);
   text-align: left;
   width: 100%;
-  transition:
-    transform var(--t2) var(--ease-spring),
-    box-shadow var(--t2),
-    border-color var(--t2);
+  transition: background-color var(--t2);
+}
+.agenda-item + .agenda-item::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 104px;
+  right: 0;
+  border-top: 1px solid var(--border);
 }
 button.agenda-item:hover {
-  transform: translateX(3px);
-  border-color: color-mix(in srgb, var(--room) 45%, var(--border));
-  box-shadow: var(--shadow-2);
+  background: var(--surface-2);
 }
 .agenda-item::before {
   content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   background: var(--room);
 }
-.agenda-item.live::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--room) 10%, transparent),
-    transparent 60%
-  );
+.agenda-item.live::before {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--room) 25%, transparent);
 }
 .agenda-time {
-  font-weight: 680;
+  font-weight: 650;
   font-variant-numeric: tabular-nums;
   line-height: 1.25;
 }
@@ -2722,17 +2566,17 @@ button.agenda-item:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 620;
+  font-weight: 600;
 }
 .agenda-main span {
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   color: var(--text-2);
 }
 .agenda-day {
   font-weight: 650;
   color: var(--text-2);
   font-size: 0.92rem;
-  margin: 10px 2px 2px;
+  margin: 14px 4px 6px;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -2740,13 +2584,29 @@ button.agenda-item:hover {
 .agenda-day.today {
   color: var(--brand-ink);
 }
+.agenda > .agenda-day {
+  margin: 0;
+  padding: 16px 18px 6px;
+  background: var(--bg);
+}
+.agenda > .agenda-day:first-child {
+  padding-top: 4px;
+}
+.agenda > .agenda-day + .agenda-item::after {
+  display: none;
+}
 @media (max-width: 520px) {
   .agenda-item {
-    grid-template-columns: 62px 1fr;
+    grid-template-columns: 8px 56px 1fr;
+    gap: 12px;
+    padding: 12px 14px;
   }
   .agenda-item > .badge {
-    grid-column: 2;
+    grid-column: 3;
     justify-self: start;
+  }
+  .agenda-item + .agenda-item::after {
+    left: 90px;
   }
 }
 
@@ -2863,8 +2723,16 @@ button.agenda-item:hover {
   box-shadow: var(--shadow-1);
   overflow: hidden;
 }
+/* ตารางเลื่อนได้ในกรอบ เพื่อให้หัวคอลัมน์ห้อง/วัน (sticky) ติดด้านบนตลอด */
 .tgrid-scroll {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: max(420px, calc(100dvh - var(--topbar-h) - 190px));
+  overscroll-behavior-x: contain;
+}
+@media (max-width: 899px) {
+  .tgrid-scroll {
+    max-height: max(380px, calc(100dvh - var(--topbar-h) - 250px));
+  }
 }
 .tg-head {
   position: sticky;
@@ -3322,6 +3190,7 @@ button.agenda-item:hover {
 /* ---------- booking flow ---------- */
 .book-layout {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
@@ -3330,9 +3199,13 @@ button.agenda-item:hover {
     grid-template-columns: minmax(0, 1fr) 340px;
   }
 }
+/* ไม่ใช้ overflow: hidden เพราะจะทำให้แถบปุ่มด้านล่าง (sticky) ติดอยู่กับการ์ดแทนหน้าจอ
+   และไปบังช่องยอมรับเงื่อนไขบนมือถือ — มุมโค้งกำหนดที่ส่วนหัวและแถบปุ่มแทน */
 .book-main {
   padding: 0;
-  overflow: hidden;
+}
+.book-main > :first-child {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 .steps {
   position: relative;
@@ -3447,9 +3320,10 @@ button.agenda-item:hover {
   align-items: center;
   padding: 14px 20px;
   border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   background: var(--glass);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: saturate(1.8) blur(20px);
+  -webkit-backdrop-filter: saturate(1.8) blur(20px);
 }
 @media (max-width: 899px) {
   .book-actions {
@@ -3461,11 +3335,25 @@ button.agenda-item:hover {
   min-width: 150px;
 }
 .mini-sum {
+  flex: 1 1 0;
   font-size: 0.82rem;
   color: var(--text-2);
   line-height: 1.35;
   min-width: 0;
   overflow: hidden;
+}
+/* จอแคบ: ปุ่มย้อนกลับ/ถัดไปกระชับขึ้น ไม่ให้แถบปุ่มกว้างเกินหน้าจอ */
+@media (max-width: 480px) {
+  .book-actions {
+    gap: 8px;
+    padding: 12px 14px;
+  }
+  .book-actions .btn {
+    padding-inline: 14px;
+  }
+  .book-actions .btn-primary {
+    min-width: 0;
+  }
 }
 .mini-sum b {
   display: block;
@@ -4306,7 +4194,6 @@ button.agenda-item:hover {
   background: #eee;
 }
 
-
 /* =========================================================================
    หน้าผู้ดูแลระบบ
    ========================================================================= */
@@ -4403,6 +4290,31 @@ button.agenda-item:hover {
 .side.open {
   transform: none;
   box-shadow: var(--shadow-3);
+}
+/* ลิ้นชักที่ปิดอยู่ต้องไม่รับโฟกัส Tab (ซ่อนหลังเลื่อนออกเสร็จ) */
+@media (max-width: 1023px) {
+  .side:not(.open) {
+    visibility: hidden;
+    transition:
+      transform var(--t3) var(--ease-out),
+      visibility 0s linear var(--t3);
+  }
+}
+/* จอแคบมาก: ซ่อนข้อความสถานะ/ลิงก์ เหลือไอคอน เพื่อไม่ให้หัวข้อหน้าถูกตัด */
+@media (max-width: 480px) {
+  .adm-top .live-text,
+  .adm-top .top-site span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .adm-top .top-site {
+    width: 44px;
+    padding: 0;
+  }
 }
 .side-scrim {
   position: fixed;
@@ -5422,6 +5334,12 @@ button.agenda-item:hover {
   box-shadow: var(--shadow-3);
   transition: transform var(--t3) var(--ease-spring);
 }
+.savebar:not(.show) {
+  visibility: hidden;
+  transition:
+    transform var(--t3) var(--ease-spring),
+    visibility 0s linear var(--t3);
+}
 .savebar.show {
   transform: translate(-50%, 0);
 }
@@ -5713,7 +5631,6 @@ button.agenda-item:hover {
 .set-jump .chip {
   flex: none;
 }
-
 
 /* =========================================================================
    จอแสดงผลหน้าห้อง (แท็บเล็ต/จอทีวี) — ธีมมืดเพื่อความคมชัดและประหยัดพลังงาน
@@ -6222,7 +6139,6 @@ button.agenda-item:hover {
   min-width: 0;
 }
 
-
 /* ======================================================================
    ทรานซิชันระหว่างหน้า HTML (View Transitions ข้ามหน้า — Chrome/Edge/Safari รุ่นใหม่)
    ส่วนหัว/เมนูอยู่นิ่ง เฉพาะเนื้อหาจางออกและเลื่อนเข้า; ออกเร็วกว่าเข้า
@@ -6245,10 +6161,16 @@ button.agenda-item:hover {
 ::view-transition-new(page) {
   animation: vInUp 360ms var(--ease-out) both;
 }
-@media (prefers-reduced-motion: reduce) {
-  @view-transition {
-    navigation: none;
-  }
+/* ลดภาพเคลื่อนไหว: เปลี่ยนหน้าแบบจางเข้าอย่างเดียว */
+html[data-motion="reduced"]::view-transition-old(page) {
+  animation: fadeOut 100ms linear both;
+}
+html[data-motion="reduced"]::view-transition-new(page) {
+  animation: fadeIn 150ms linear both;
+}
+html[data-motion="off"]::view-transition-old(page),
+html[data-motion="off"]::view-transition-new(page) {
+  animation: none;
 }
 
 /* รายการวันที่จองไม่ได้ในกล่องยืนยัน */
@@ -6278,4 +6200,112 @@ button.agenda-item:hover {
 .noscript {
   padding: 24px;
   text-align: center;
+}
+
+/* จอหน้าห้องที่ยังไม่ได้ตั้งรหัสจอ: แนะนำให้เช็คอินจากมือถือ */
+.ds-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+
+/* ปรากฏขึ้นเมื่อเลื่อนมาถึง (เคารพการลดภาพเคลื่อนไหว) */
+.reveal-ready .reveal-item {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.8s var(--ease-out),
+    transform 0.8s var(--ease-out);
+}
+.reveal-ready .reveal-item.in {
+  opacity: 1;
+  transform: none;
+}
+[data-motion="reduced"] .reveal-ready .reveal-item,
+[data-motion="off"] .reveal-ready .reveal-item {
+  transform: none;
+  transition-duration: 0.2s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal-ready .reveal-item {
+    transform: none;
+  }
+}
+
+/* แถบเวลาของข้อความแจ้งเตือนหยุดเมื่อชี้/โฟกัส */
+.toast.paused .toast-bar {
+  animation-play-state: paused;
+}
+
+/* โฟกัสที่มองเห็นได้สำหรับช่องที่ซ่อนอยู่ในปุ่ม/ป้าย (เลือกไฟล์ จำนวนคน เลือกวันที่) */
+label:has(> input.sr-only:focus-visible),
+.stepper:focus-within,
+.dchip.pick:has(:focus-visible),
+.cal-title:has(:focus-visible) {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* หัวข้อการจองในตารางผู้ดูแลเป็นปุ่ม (เปิดรายละเอียดด้วยคีย์บอร์ดได้) */
+.t-open {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.t-open:hover {
+  color: var(--brand-ink);
+}
+
+/* ปุ่มที่หน้าตาเหมือนลิงก์ */
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--brand-ink);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (pointer: coarse) {
+  .tag button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* หน้าไม่พบ (404) */
+.notfound {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 24px;
+  text-align: center;
+}
+.notfound .code404 {
+  font-size: clamp(4rem, 3rem + 6vw, 7rem);
+  font-weight: 700;
+  line-height: 1;
+}
+.notfound h1 {
+  margin-top: 12px;
+  font-size: clamp(1.6rem, 1.3rem + 1.4vw, 2.4rem);
+}
+.notfound p {
+  margin: 10px auto 24px;
+  max-width: 36ch;
+  color: var(--text-2);
+}
+.notfound .hero-actions {
+  justify-content: center;
 }
