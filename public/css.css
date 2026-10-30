@@ -4224,305 +4224,6 @@ button.agenda-item:hover {
   --side-w: 264px;
 }
 
-/* ---------- login (การ์ดสองฝั่งบนพื้นหลังท้องฟ้า) ---------- */
-.auth {
-  position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  padding: clamp(16px, 4vw, 48px) 16px;
-  overflow: hidden;
-  isolation: isolate;
-}
-/* ท้องฟ้าและเมฆวาดด้วย CSS ล้วน (ไม่ใช้ภาพถ่าย) */
-.auth-sky {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(
-      60% 40% at 15% 92%,
-      #fff 0,
-      rgba(255, 255, 255, 0.85) 35%,
-      transparent 70%
-    ),
-    radial-gradient(
-      55% 38% at 85% 95%,
-      #fff 0,
-      rgba(255, 255, 255, 0.8) 35%,
-      transparent 70%
-    ),
-    radial-gradient(45% 30% at 50% 108%, #fff 0, transparent 70%),
-    radial-gradient(
-      40% 18% at 20% 30%,
-      rgba(255, 255, 255, 0.55),
-      transparent 70%
-    ),
-    radial-gradient(
-      35% 14% at 78% 22%,
-      rgba(255, 255, 255, 0.5),
-      transparent 70%
-    ),
-    linear-gradient(180deg, #4f97d6 0%, #7fb6e6 38%, #bcd9f2 68%, #eaf3fb 100%);
-}
-/* เส้นโค้งบาง ๆ รอบการ์ด */
-.auth-sky i {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: var(--d);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  transform: translate(-50%, -50%);
-}
-.auth-sky i:nth-child(1) {
-  --d: 120vmax;
-}
-.auth-sky i:nth-child(2) {
-  --d: 150vmax;
-  opacity: 0.6;
-}
-.auth-sky i:nth-child(3) {
-  --d: 180vmax;
-  opacity: 0.35;
-}
-[data-theme="dark"] .auth-sky {
-  background:
-    radial-gradient(
-      60% 40% at 15% 95%,
-      rgba(120, 140, 170, 0.35),
-      transparent 70%
-    ),
-    radial-gradient(
-      55% 38% at 85% 98%,
-      rgba(120, 140, 170, 0.3),
-      transparent 70%
-    ),
-    linear-gradient(180deg, #050a14 0%, #0d1830 55%, #1a2a45 100%);
-}
-[data-theme="dark"] .auth-sky i {
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-.auth-card {
-  position: relative;
-  display: grid;
-  width: min(980px, 100%);
-  border-radius: 32px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: saturate(1.6) blur(24px);
-  -webkit-backdrop-filter: saturate(1.6) blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  box-shadow:
-    0 40px 90px -30px rgba(20, 50, 90, 0.45),
-    0 0 0 6px rgba(255, 255, 255, 0.35);
-  animation: rise var(--t4) var(--ease-out);
-}
-[data-theme="dark"] .auth-card {
-  background: rgba(28, 28, 30, 0.88);
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow:
-    0 40px 90px -30px rgba(0, 0, 0, 0.8),
-    0 0 0 6px rgba(255, 255, 255, 0.04);
-}
-@media (min-width: 860px) {
-  .auth-card {
-    grid-template-columns: 1fr 1fr;
-    min-height: 600px;
-  }
-}
-
-.auth-form {
-  display: grid;
-  align-content: center;
-  padding: clamp(28px, 5vw, 56px) clamp(22px, 5vw, 56px);
-}
-.auth-form > form,
-.auth-form > div {
-  display: grid;
-  gap: 18px;
-  width: min(380px, 100%);
-  margin: 0 auto;
-}
-.auth-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-2);
-}
-.auth-brand .brand-mark {
-  width: 40px;
-  height: 40px;
-}
-.auth-head {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-.auth-head h1 {
-  font-size: clamp(1.7rem, 1.4rem + 1.2vw, 2.25rem);
-  font-weight: 700;
-  line-height: 1.25;
-}
-.auth-head p {
-  color: var(--text-2);
-}
-.auth-form .input {
-  min-height: 50px;
-  border-radius: 14px;
-  background: var(--surface);
-}
-.auth-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.auth-row .link-btn {
-  min-height: 32px;
-}
-#login-err:empty {
-  display: none;
-}
-/* ปุ่มหลักสีเข้มแบบภาพอ้างอิง */
-.auth-submit {
-  --btn-bg: var(--text);
-  --btn-fg: var(--bg);
-  min-height: 52px;
-  border-radius: 14px;
-}
-.auth-submit:hover {
-  --btn-bg: color-mix(in srgb, var(--text) 85%, var(--brand));
-}
-.auth-foot {
-  text-align: center;
-  font-size: 0.9rem;
-}
-.auth-foot a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  color: var(--text-2);
-}
-.auth-form code {
-  font-family: var(--mono);
-  font-size: 0.85em;
-  padding: 1px 6px;
-  border-radius: 6px;
-  background: var(--surface-2);
-}
-
-/* แผงขวา: ใบไม้สีเขียว + ตราสำนักงานในกรอบกระจก */
-.auth-art {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-height: 190px;
-  background: #0a5c3b;
-  color: #fff;
-  overflow: hidden;
-  order: -1;
-}
-@media (min-width: 860px) {
-  .auth-art {
-    order: 0;
-    min-height: 100%;
-  }
-}
-.auth-leaves {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-.auth-art::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(
-      60% 45% at 50% 45%,
-      rgba(0, 0, 0, 0) 0,
-      rgba(0, 0, 0, 0.18) 100%
-    ),
-    linear-gradient(180deg, rgba(0, 0, 0, 0) 55%, rgba(0, 30, 18, 0.55) 100%);
-  pointer-events: none;
-}
-.auth-glass {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  width: clamp(116px, 14vw, 196px);
-  aspect-ratio: 1;
-  padding: clamp(14px, 2vw, 26px);
-  border-radius: clamp(26px, 3vw, 40px);
-  background: rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow:
-    0 30px 60px -20px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
-  animation: floaty 6s var(--ease-soft) infinite;
-}
-.auth-glass .seal {
-  --seal-color: #fff;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.25));
-}
-.auth-glass img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  border-radius: 50%;
-  background: #fff;
-}
-@keyframes floaty {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-[data-motion="reduced"] .auth-glass,
-[data-motion="off"] .auth-glass {
-  animation: none;
-}
-.auth-org {
-  position: absolute;
-  z-index: 1;
-  left: clamp(20px, 3vw, 32px);
-  right: 20px;
-  bottom: clamp(16px, 3vw, 30px);
-  display: grid;
-  gap: 2px;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
-}
-.auth-org b {
-  font-size: clamp(1rem, 0.9rem + 0.6vw, 1.35rem);
-  font-weight: 700;
-}
-.auth-org span {
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  opacity: 0.85;
-}
-@media (max-width: 859px) {
-  .auth-org {
-    display: none;
-  }
-}
-
 .pw-wrap {
   position: relative;
 }
@@ -6583,4 +6284,433 @@ label:has(> input.sr-only:focus-visible),
 }
 .notfound .hero-actions {
   justify-content: center;
+}
+
+/* ===================== หน้าเข้าสู่ระบบ: การ์ดกระจกบนทะเลเมฆ ===================== */
+.auth {
+  --px: 0;
+  --py: 0;
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: clamp(64px, 9vh, 96px) 16px 40px;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* ท้องฟ้า (เปลี่ยนตามช่วงเวลา) */
+.auth-sky {
+  position: absolute;
+  inset: -40px;
+  z-index: -1;
+  background: linear-gradient(
+    180deg,
+    #3f88cf 0%,
+    #6aa6dd 34%,
+    #a7cbee 62%,
+    #e3eef9 100%
+  );
+  transform: translate(calc(var(--px) * -14px), calc(var(--py) * -10px));
+  transition:
+    transform 0.6s var(--ease-out),
+    background 1s;
+}
+:root:not([data-theme="dark"]) .auth.t-dawn .auth-sky {
+  background: linear-gradient(
+    180deg,
+    #6f9fd6 0%,
+    #b7a9d8 36%,
+    #f3bfa6 66%,
+    #fde9dc 100%
+  );
+}
+:root:not([data-theme="dark"]) .auth.t-dusk .auth-sky {
+  background: linear-gradient(
+    180deg,
+    #34467f 0%,
+    #7b62a3 34%,
+    #e48a73 64%,
+    #f9c99a 100%
+  );
+}
+:root:not([data-theme="dark"]) .auth.t-night .auth-sky,
+[data-theme="dark"] .auth-sky {
+  background: linear-gradient(180deg, #060d22 0%, #111f47 52%, #24386a 100%);
+}
+/* เมฆบางชั้นบน (cirrus) ลอยช้า ๆ */
+.auth-sky .streak {
+  position: absolute;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  filter: blur(14px);
+  animation: streak var(--sd) linear infinite;
+}
+.auth-sky .s1 {
+  top: 14%;
+  width: 46vw;
+  --sd: 110s;
+  animation-delay: -30s;
+}
+.auth-sky .s2 {
+  top: 26%;
+  width: 34vw;
+  opacity: 0.7;
+  --sd: 150s;
+  animation-delay: -95s;
+}
+@keyframes streak {
+  from {
+    transform: translateX(-50vw);
+  }
+  to {
+    transform: translateX(150vw);
+  }
+}
+/* ทะเลเมฆ 3 ชั้น เลื่อนวนด้วยความเร็วต่างกัน (parallax) */
+.auth-sky .clouds {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 62%;
+  transform: translate(calc(var(--px) * -24px), calc(var(--py) * -8px));
+  transition: transform 0.6s var(--ease-out);
+}
+.auth-sky .bank {
+  --cloud-top: #ffffff;
+  --cloud-shade: #d6e4f2;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 200%;
+  animation: bankDrift var(--bd) linear infinite;
+}
+.auth-sky .b-back {
+  height: 70%;
+  bottom: 30%;
+  opacity: 0.6;
+  filter: blur(10px);
+  --cloud-shade: #c7dbef;
+  --bd: 180s;
+}
+.auth-sky .b-mid {
+  height: 72%;
+  bottom: 10%;
+  opacity: 0.88;
+  filter: blur(6px);
+  --bd: 120s;
+}
+.auth-sky .b-front {
+  height: 78%;
+  bottom: -18%;
+  filter: blur(3px);
+  --cloud-shade: #e6eef7;
+  --bd: 80s;
+}
+@keyframes bankDrift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+:root:not([data-theme="dark"]) .auth.t-dusk .bank {
+  --cloud-top: #ffe9d8;
+  --cloud-shade: #d99a9a;
+}
+:root:not([data-theme="dark"]) .auth.t-dawn .bank {
+  --cloud-top: #fff6ef;
+  --cloud-shade: #e8c7cf;
+}
+.auth.t-night .bank,
+[data-theme="dark"] .auth .bank {
+  --cloud-top: #7487b3;
+  --cloud-shade: #2a3a63;
+  opacity: 0.45;
+}
+/* ดาว */
+.auth-sky .stars {
+  position: absolute;
+  inset: 0 0 40% 0;
+  opacity: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 8% 12%, #fff 50%, transparent 52%),
+    radial-gradient(1px 1px at 18% 34%, #fff 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 27% 8%, #fff 50%, transparent 52%),
+    radial-gradient(1px 1px at 39% 26%, #fff 50%, transparent 52%),
+    radial-gradient(2px 2px at 52% 14%, #fff 50%, transparent 52%),
+    radial-gradient(1px 1px at 61% 38%, #fff 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 72% 9%, #fff 50%, transparent 52%),
+    radial-gradient(1px 1px at 83% 28%, #fff 50%, transparent 52%),
+    radial-gradient(2px 2px at 92% 16%, #fff 50%, transparent 52%),
+    radial-gradient(1px 1px at 4% 46%, #fff 50%, transparent 52%),
+    radial-gradient(1px 1px at 46% 52%, #fff 50%, transparent 52%),
+    radial-gradient(1.5px 1.5px at 96% 48%, #fff 50%, transparent 52%);
+  animation: twinkle 4s ease-in-out infinite alternate;
+}
+.auth.t-night .stars,
+[data-theme="dark"] .auth .stars {
+  opacity: 0.9;
+}
+@keyframes twinkle {
+  from {
+    filter: brightness(0.55);
+  }
+  to {
+    filter: brightness(1.3);
+  }
+}
+
+/* นาฬิกาเหนือการ์ด */
+.auth-clock {
+  position: absolute;
+  top: clamp(16px, 3vh, 28px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 16px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+}
+.auth-clock b {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.auth-clock span {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+/* การ์ดกระจก: ขอบขาวหนา พื้นโปร่งให้เห็นเมฆด้านหลัง */
+.auth-card {
+  position: relative;
+  width: min(460px, 100%);
+  padding: clamp(28px, 5vw, 44px) clamp(22px, 5vw, 44px) clamp(24px, 4vw, 36px);
+  border-radius: 40px;
+  background: linear-gradient(
+    180deg,
+    rgba(214, 233, 250, 0.72) 0%,
+    rgba(244, 248, 252, 0.72) 45%,
+    rgba(255, 255, 255, 0.8) 100%
+  );
+  backdrop-filter: saturate(1.5) blur(18px);
+  -webkit-backdrop-filter: saturate(1.5) blur(18px);
+  border: 8px solid rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 40px 80px -30px rgba(20, 50, 90, 0.45),
+    0 2px 0 rgba(255, 255, 255, 0.6) inset;
+  animation: rise var(--t4) var(--ease-out);
+}
+[data-theme="dark"] .auth-card,
+:root:not([data-theme="dark"]) .auth.t-night .auth-card {
+  background: linear-gradient(
+    180deg,
+    rgba(40, 52, 80, 0.72),
+    rgba(24, 28, 40, 0.82)
+  );
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f5f5f7;
+  --text: #f5f5f7;
+  --text-2: #c7c7cc;
+  --text-3: #a1a1a6;
+  --surface: rgba(255, 255, 255, 0.08);
+  --surface-2: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.35);
+  --bg: #111;
+  --brand-ink: #8cc8ff;
+}
+.auth-card > form,
+.auth-card > div {
+  display: grid;
+  gap: 16px;
+}
+.auth-card.leaving {
+  transition:
+    transform 0.45s var(--ease-out),
+    opacity 0.45s var(--ease-out);
+  transform: translateY(-18px) scale(0.98);
+  opacity: 0;
+}
+
+/* ตราเขตในวงกลมด้านบน + ชื่อหน่วยงาน */
+.auth-brand {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.auth-seal {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  padding: 6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 6px rgba(255, 255, 255, 0.55),
+    0 10px 24px -10px rgba(20, 50, 90, 0.45);
+  animation: sealIn 0.9s var(--ease-spring) both;
+}
+.auth-seal .seal {
+  --seal-color: #0a754d;
+}
+.auth-seal img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+}
+@keyframes sealIn {
+  from {
+    transform: scale(0.6) rotate(-25deg);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.auth-head {
+  display: grid;
+  gap: 4px;
+  text-align: center;
+  margin-bottom: 4px;
+}
+.auth-greet {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--brand-ink);
+}
+.auth-head h1 {
+  font-size: clamp(1.6rem, 1.4rem + 1vw, 2rem);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.auth-head p {
+  color: var(--text-2);
+}
+.auth-card .input {
+  min-height: 50px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+}
+[data-theme="dark"] .auth-card .input,
+.auth.t-night .auth-card .input {
+  background: rgba(255, 255, 255, 0.06);
+}
+.auth-card .input:focus {
+  background: var(--surface);
+}
+.auth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.auth-row .link-btn {
+  min-height: 32px;
+}
+#login-err:empty {
+  display: none;
+}
+/* ปุ่มหลักสีเข้มแบบภาพอ้างอิง */
+.auth-submit {
+  --btn-bg: #1d1d1f;
+  --btn-fg: #fff;
+  min-height: 52px;
+  border-radius: 16px;
+}
+.auth-submit:hover {
+  --btn-bg: #000;
+}
+[data-theme="dark"] .auth-submit,
+.auth.t-night .auth-submit {
+  --btn-bg: #f5f5f7;
+  --btn-fg: #111;
+}
+.auth-submit.is-done {
+  --btn-bg: var(--ok);
+  --btn-fg: #fff;
+  animation: donePop var(--t3) var(--ease-spring);
+}
+@keyframes donePop {
+  0% {
+    transform: scale(0.96);
+  }
+  60% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.auth-foot {
+  text-align: center;
+  font-size: 0.9rem;
+}
+.auth-foot a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--text-2);
+}
+.auth-card code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+/* เตือน Caps Lock / แป้นพิมพ์ภาษาไทย */
+.key-warn {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+}
+.key-warn.show {
+  display: inline-flex;
+  animation: fadeIn var(--t2) var(--ease-out);
+}
+
+/* ลดภาพเคลื่อนไหว: เมฆ ดาว และ parallax หยุดนิ่ง */
+[data-motion="reduced"] .auth .bank,
+[data-motion="off"] .auth .bank,
+[data-motion="reduced"] .auth .streak,
+[data-motion="off"] .auth .streak,
+[data-motion="reduced"] .auth .stars,
+[data-motion="off"] .auth .stars,
+[data-motion="reduced"] .auth-seal,
+[data-motion="off"] .auth-seal {
+  animation: none;
+}
+[data-motion="reduced"] .auth-sky,
+[data-motion="off"] .auth-sky,
+[data-motion="reduced"] .auth-sky .clouds,
+[data-motion="off"] .auth-sky .clouds {
+  transform: none;
 }

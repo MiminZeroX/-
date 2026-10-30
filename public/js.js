@@ -5763,6 +5763,7 @@
           ),
         );
         $("#auth-retry").onclick = () => location.reload();
+        initAuthFx();
         return;
       }
       try {
@@ -5778,86 +5779,138 @@
       }
     }
 
-    // ภาพใบไม้ (SVG) สำหรับแผงด้านขวาของหน้าเข้าสู่ระบบ — วางตำแหน่งแบบกำหนดตายตัว
-    const LEAVES = (() => {
-      const shades = [
-        "#0b6b45",
-        "#0e7d52",
-        "#12905e",
-        "#0a5c3b",
-        "#159a65",
-        "#0c7149",
-      ];
-      const leaf = "M0-100C58-72 62 38 0 100C-62 38-58-72 0-100Z";
-      const veins =
-        "M0-92C5-20 4 40 0 96M2-50 32-70M2-18 38-34M3 14 38 2M3 46 30 38M-1-50-30-70M-1-18-36-34M-2 14-36 2M-2 46-28 38";
-      const spots = [
-        [40, 30, -30, 1.25],
-        [170, -10, 20, 1.1],
-        [300, 40, -12, 1.3],
-        [400, 10, 35, 1],
-        [-10, 170, 15, 1.2],
-        [110, 140, -40, 1.35],
-        [240, 170, 28, 1.15],
-        [370, 160, -20, 1.25],
-        [50, 310, 40, 1.1],
-        [180, 290, -8, 1.3],
-        [310, 320, 22, 1.2],
-        [420, 300, -35, 1.1],
-        [-20, 450, -15, 1.3],
-        [110, 430, 30, 1.2],
-        [240, 460, -25, 1.35],
-        [370, 440, 12, 1.15],
-        [40, 590, 20, 1.25],
-        [170, 580, -35, 1.1],
-        [300, 600, 8, 1.3],
-        [430, 580, -18, 1.2],
-        [100, 220, 60, 0.85],
-        [330, 240, -55, 0.9],
-        [220, 370, 75, 0.8],
-        [60, 520, -60, 0.9],
-      ];
-      const g = spots
-        .map(
-          ([x, y, r, k], i) =>
-            `<g transform="translate(${x} ${y}) rotate(${r}) scale(${k})"><path d="${leaf}" fill="${shades[i % shades.length]}"/><path d="${veins}" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="2.2" stroke-linecap="round"/></g>`,
-        )
-        .join("");
-      return raw(
-        `<svg class="auth-leaves" viewBox="0 0 440 640" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${g}</svg>`,
-      );
-    })();
+    // ช่วงเวลาของวัน (เวลาไทย) ใช้กำหนดสีท้องฟ้าและคำทักทายหน้าเข้าสู่ระบบ
+    function dayPart(min) {
+      if (min >= 5 * 60 && min < 8 * 60) return "dawn";
+      if (min >= 8 * 60 && min < 16 * 60 + 30) return "day";
+      if (min >= 16 * 60 + 30 && min < 19 * 60) return "dusk";
+      return "night";
+    }
+    // ทะเลเมฆ: ก้อนกลมขนาด/ความสูงต่างกันซ้อนกัน (สุ่มแบบกำหนดค่าเริ่มต้น จึงได้รูปเดิมทุกครั้ง)
+    // วาดซ้ำ 2 ชุดต่อกัน เพื่อเลื่อนวนได้ไม่สะดุด · ไล่สีขาวด้านบนเป็นเงาฟ้าอ่อนด้านล่าง
+    function cloudBank(cls, seed, count, base, rMin, rMax) {
+      let x = seed;
+      const rnd = () => {
+        x = (x * 9301 + 49297) % 233280;
+        return x / 233280;
+      };
+      const puffs = [];
+      for (let i = 0; i < count; i++) {
+        const cx = Math.round((i / count) * 1000 + rnd() * 40);
+        const r = Math.round(rMin + rnd() * (rMax - rMin));
+        const cy = Math.round(base - r * 0.55 + rnd() * 40);
+        puffs.push(
+          `<circle cx="${cx}" cy="${cy}" r="${r}"/><circle cx="${cx + 1000}" cy="${cy}" r="${r}"/>`,
+        );
+      }
+      const id = `cg-${cls}`;
+      return `<svg class="bank ${cls}" viewBox="0 0 2000 400" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--cloud-top)"/><stop offset="1" style="stop-color:var(--cloud-shade)"/></linearGradient></defs><g fill="url(#${id})"><rect x="0" y="${base}" width="2000" height="${400 - base}"/>${puffs.join("")}</g></svg>`;
+    }
+    const CLOUDS = raw(
+      cloudBank("b-back", 7, 26, 250, 40, 95) +
+        cloudBank("b-mid", 19, 20, 270, 60, 130) +
+        cloudBank("b-front", 31, 14, 300, 90, 170),
+    );
 
-    // โครงหน้าเข้าสู่ระบบ: การ์ดแยกสองฝั่ง (ฟอร์ม | แผงตราสำนักงาน) บนพื้นหลังท้องฟ้า
+    // โครงหน้าเข้าสู่ระบบ: การ์ดกระจกใบเดียวกลางจอ บนท้องฟ้าและทะเลเมฆที่เคลื่อนไหว
     function authLayout(inner) {
-      const s = A.settings;
-      return html`<main class="auth">
-        <div class="auth-sky" aria-hidden="true"><i></i><i></i><i></i></div>
-        <div class="auth-card">
-          <section class="auth-form">${inner}</section>
-          <aside class="auth-art" aria-hidden="true">
-            ${LEAVES}
-            <div class="auth-glass">
-              ${s.logo
-                ? html`<img src="${s.logo}" alt="" />`
-                : raw('<span class="seal"></span>')}
-            </div>
-            <div class="auth-org">
-              <b>${s.orgName || "สำนักงานเขตบางรัก"}</b>
-              <span>BANG RAK DISTRICT OFFICE</span>
-            </div>
-          </aside>
+      const n = bkkNow();
+      return html`<main class="auth t-${dayPart(n.minutes)}">
+        <div class="auth-sky" aria-hidden="true">
+          <span class="stars"></span>
+          <b class="streak s1"></b><b class="streak s2"></b>
+          <div class="clouds">${CLOUDS}</div>
         </div>
+        <div class="auth-clock" aria-hidden="true">
+          <b id="auth-time"></b><span id="auth-date"></span>
+        </div>
+        <div class="auth-card">${inner}</div>
       </main>`;
+    }
+
+    // ลูกเล่นหน้าเข้าสู่ระบบ: นาฬิกา, ตราเอียงตามเมาส์, เตือน Caps Lock / แป้นพิมพ์ภาษาไทย
+    let authTimer = null;
+    function initAuthFx() {
+      const auth = $(".auth");
+      if (!auth) return;
+      clearInterval(authTimer);
+      const tick = () => {
+        const tEl = $("#auth-time");
+        if (!tEl) return clearInterval(authTimer);
+        const n = bkkNow();
+        tEl.textContent = `${pad2(Math.floor(n.minutes / 60))}:${pad2(n.minutes % 60)}`;
+        $("#auth-date").textContent = fmtDate(n.date, "wd");
+        auth.className = `auth t-${dayPart(n.minutes)}`;
+      };
+      tick();
+      authTimer = setInterval(tick, 15000);
+      // ท้องฟ้าเลื่อนตามเมาส์เล็กน้อย (parallax) เฉพาะเมาส์ และโหมดเอฟเฟกต์เต็ม
+      if (matchMedia("(pointer: fine)").matches && motionLevel() === "full") {
+        let raf = 0;
+        auth.addEventListener("pointermove", (e) => {
+          cancelAnimationFrame(raf);
+          raf = requestAnimationFrame(() => {
+            auth.style.setProperty(
+              "--px",
+              (e.clientX / innerWidth - 0.5).toFixed(3),
+            );
+            auth.style.setProperty(
+              "--py",
+              (e.clientY / innerHeight - 0.5).toFixed(3),
+            );
+          });
+        });
+      }
+      // คำเตือนการพิมพ์: Caps Lock เปิด หรือพิมพ์ภาษาไทยในช่องชื่อผู้ใช้/รหัสผ่าน
+      $$("input[type=password], input[name=username]", auth).forEach((inp) => {
+        const field = inp.closest(".field");
+        if (!field || field.querySelector(".key-warn")) return;
+        const warn = document.createElement("small");
+        warn.className = "key-warn";
+        warn.setAttribute("aria-live", "polite");
+        field.append(warn);
+        const check = (e) => {
+          const caps = e.getModifierState?.("CapsLock");
+          const thai = /[\u0E00-\u0E7F]/.test(inp.value);
+          const msg = thai
+            ? "แป้นพิมพ์เป็นภาษาไทยอยู่ กดปุ่ม ~ หรือ Alt+Shift เพื่อเปลี่ยนเป็นภาษาอังกฤษ"
+            : caps
+              ? "Caps Lock เปิดอยู่"
+              : "";
+          if (warn.textContent !== msg) {
+            warn.textContent = msg;
+            warn.classList.toggle("show", !!msg);
+          }
+        };
+        ["keydown", "keyup", "input"].forEach((ev) =>
+          inp.addEventListener(ev, check),
+        );
+        inp.addEventListener("blur", () => {
+          warn.textContent = "";
+          warn.classList.remove("show");
+        });
+      });
+    }
+
+    // เข้าสู่ระบบสำเร็จ: ปุ่มกลายเป็นเครื่องหมายถูก แล้วการ์ดค่อย ๆ ลอยหายไป
+    function authSuccess(btn) {
+      return new Promise((resolve) => {
+        if (motionLevel() === "off") return resolve();
+        btn.classList.remove("is-loading");
+        btn.classList.add("is-done");
+        setHTML(btn, html`${icon("check")} สำเร็จ`);
+        setTimeout(() => $(".auth-card")?.classList.add("leaving"), 550);
+        setTimeout(resolve, motionLevel() === "full" ? 980 : 450);
+      });
     }
 
     function authBrand() {
       const s = A.settings;
       return html`<div class="auth-brand">
-        <span class="brand-mark"
+        <span class="auth-seal"
           >${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}</span
         >
-        <span>${s.siteName}</span>
+        <span>${s.orgName} · ${s.siteName}</span>
       </div>`;
     }
 
@@ -5870,6 +5923,7 @@
           html`<form id="login" autocomplete="on" novalidate>
             ${authBrand()}
             <div class="auth-head">
+              <p class="auth-greet">${greeting(bkkNow().minutes)}</p>
               <h1>ยินดีต้อนรับกลับ</h1>
               <p>เข้าสู่ระบบผู้ดูแล เพื่ออนุมัติและจัดการการจองห้องประชุม</p>
             </div>
@@ -5936,6 +5990,7 @@
         ),
       );
       const form = $("#login");
+      initAuthFx();
       form.username.focus();
       $("#forgot").onclick = () => {
         const tip = $("#forgot-tip");
@@ -5978,6 +6033,7 @@
           A.me = res.admin;
           const me = await api("/api/admin/me");
           A.pending = me.pendingCount;
+          await authSuccess(btn);
           toast(`ยินดีต้อนรับ ${A.me.name}`, "success");
           await enter();
         } catch (err) {
@@ -6403,11 +6459,13 @@
         ),
       );
       const form = $("#first-pw");
+      initAuthFx();
       form.current.focus();
       form.onsubmit = async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button[type="submit"]');
         if (await submitPassword(form, btn)) {
+          await authSuccess(btn);
           toast("ตั้งรหัสผ่านแล้ว เริ่มใช้งานได้เลย", "success");
           await enter();
         }
