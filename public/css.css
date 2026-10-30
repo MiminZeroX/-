@@ -6338,78 +6338,34 @@ label:has(> input.sr-only:focus-visible),
 [data-theme="dark"] .auth-sky {
   background: linear-gradient(180deg, #060d22 0%, #111f47 52%, #24386a 100%);
 }
-/* เมฆบางชั้นบน (cirrus) ลอยช้า ๆ */
-.auth-sky .streak {
+/* ภาพทะเลเมฆ (ต่อกันได้ในแนวนอน) เลื่อนวนไม่มีรอยต่อ:
+   แถบกว้าง 2 เท่าของภาพหนึ่งชิ้น เลื่อนไปครึ่งหนึ่งพอดีแล้ววนกลับ */
+.auth-sky .cloud-pan {
   position: absolute;
-  height: 26px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.55);
-  filter: blur(14px);
-  animation: streak var(--sd) linear infinite;
-}
-.auth-sky .s1 {
-  top: 14%;
-  width: 46vw;
-  --sd: 110s;
-  animation-delay: -30s;
-}
-.auth-sky .s2 {
-  top: 26%;
-  width: 34vw;
-  opacity: 0.7;
-  --sd: 150s;
-  animation-delay: -95s;
-}
-@keyframes streak {
-  from {
-    transform: translateX(-50vw);
-  }
-  to {
-    transform: translateX(150vw);
-  }
-}
-/* ทะเลเมฆ 3 ชั้น เลื่อนวนด้วยความเร็วต่างกัน (parallax) */
-.auth-sky .clouds {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 62%;
-  transform: translate(calc(var(--px) * -24px), calc(var(--py) * -8px));
+  inset: 0;
+  overflow: hidden;
+  transform: translate(calc(var(--px) * -20px), calc(var(--py) * -10px));
   transition: transform 0.6s var(--ease-out);
 }
-.auth-sky .bank {
-  --cloud-top: #ffffff;
-  --cloud-shade: #d6e4f2;
+.auth-sky .cloud-strip {
   position: absolute;
+  top: 0;
   left: 0;
-  bottom: 0;
-  width: 200%;
-  animation: bankDrift var(--bd) linear infinite;
+  height: 100%;
+  /* อัตราส่วนภาพ 1 ชิ้น = 1050:318 → แถบ 2 ชิ้นต่อกัน */
+  aspect-ratio: 2100 / 318;
+  min-width: 200%;
+  background-image: url(media/clouds.jpg);
+  background-image: image-set(
+    url(media/clouds.webp) type("image/webp"),
+    url(media/clouds.jpg) type("image/jpeg")
+  );
+  background-repeat: repeat-x;
+  background-size: auto 100%;
+  animation: cloudPan 150s linear infinite;
+  will-change: transform;
 }
-.auth-sky .b-back {
-  height: 70%;
-  bottom: 30%;
-  opacity: 0.6;
-  filter: blur(10px);
-  --cloud-shade: #c7dbef;
-  --bd: 180s;
-}
-.auth-sky .b-mid {
-  height: 72%;
-  bottom: 10%;
-  opacity: 0.88;
-  filter: blur(6px);
-  --bd: 120s;
-}
-.auth-sky .b-front {
-  height: 78%;
-  bottom: -18%;
-  filter: blur(3px);
-  --cloud-shade: #e6eef7;
-  --bd: 80s;
-}
-@keyframes bankDrift {
+@keyframes cloudPan {
   from {
     transform: translateX(0);
   }
@@ -6417,20 +6373,44 @@ label:has(> input.sr-only:focus-visible),
     transform: translateX(-50%);
   }
 }
-:root:not([data-theme="dark"]) .auth.t-dusk .bank {
-  --cloud-top: #ffe9d8;
-  --cloud-shade: #d99a9a;
+/* ย้อมสีภาพตามช่วงเวลา */
+.auth-sky .cloud-tint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1s;
 }
-:root:not([data-theme="dark"]) .auth.t-dawn .bank {
-  --cloud-top: #fff6ef;
-  --cloud-shade: #e8c7cf;
+:root:not([data-theme="dark"]) .auth.t-dawn .cloud-tint {
+  opacity: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(150, 120, 200, 0.35),
+    rgba(255, 170, 140, 0.35) 55%,
+    rgba(255, 210, 180, 0.25)
+  );
+  mix-blend-mode: soft-light;
 }
-.auth.t-night .bank,
-[data-theme="dark"] .auth .bank {
-  --cloud-top: #7487b3;
-  --cloud-shade: #2a3a63;
-  opacity: 0.45;
+:root:not([data-theme="dark"]) .auth.t-dusk .cloud-tint {
+  opacity: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(70, 50, 140, 0.55),
+    rgba(230, 120, 90, 0.5) 50%,
+    rgba(255, 180, 120, 0.45)
+  );
+  mix-blend-mode: multiply;
 }
+.auth.t-night .cloud-tint,
+[data-theme="dark"] .auth .cloud-tint {
+  opacity: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(4, 10, 30, 0.82),
+    rgba(16, 28, 64, 0.7)
+  );
+}
+
 /* ดาว */
 .auth-sky .stars {
   position: absolute;
@@ -6698,10 +6678,8 @@ label:has(> input.sr-only:focus-visible),
 }
 
 /* ลดภาพเคลื่อนไหว: เมฆ ดาว และ parallax หยุดนิ่ง */
-[data-motion="reduced"] .auth .bank,
-[data-motion="off"] .auth .bank,
-[data-motion="reduced"] .auth .streak,
-[data-motion="off"] .auth .streak,
+[data-motion="reduced"] .auth .cloud-strip,
+[data-motion="off"] .auth .cloud-strip,
 [data-motion="reduced"] .auth .stars,
 [data-motion="off"] .auth .stars,
 [data-motion="reduced"] .auth-seal,
@@ -6710,7 +6688,7 @@ label:has(> input.sr-only:focus-visible),
 }
 [data-motion="reduced"] .auth-sky,
 [data-motion="off"] .auth-sky,
-[data-motion="reduced"] .auth-sky .clouds,
-[data-motion="off"] .auth-sky .clouds {
+[data-motion="reduced"] .auth-sky .cloud-pan,
+[data-motion="off"] .auth-sky .cloud-pan {
   transform: none;
 }

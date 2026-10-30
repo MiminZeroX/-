@@ -5786,40 +5786,14 @@
       if (min >= 16 * 60 + 30 && min < 19 * 60) return "dusk";
       return "night";
     }
-    // ทะเลเมฆ: ก้อนกลมขนาด/ความสูงต่างกันซ้อนกัน (สุ่มแบบกำหนดค่าเริ่มต้น จึงได้รูปเดิมทุกครั้ง)
-    // วาดซ้ำ 2 ชุดต่อกัน เพื่อเลื่อนวนได้ไม่สะดุด · ไล่สีขาวด้านบนเป็นเงาฟ้าอ่อนด้านล่าง
-    function cloudBank(cls, seed, count, base, rMin, rMax) {
-      let x = seed;
-      const rnd = () => {
-        x = (x * 9301 + 49297) % 233280;
-        return x / 233280;
-      };
-      const puffs = [];
-      for (let i = 0; i < count; i++) {
-        const cx = Math.round((i / count) * 1000 + rnd() * 40);
-        const r = Math.round(rMin + rnd() * (rMax - rMin));
-        const cy = Math.round(base - r * 0.55 + rnd() * 40);
-        puffs.push(
-          `<circle cx="${cx}" cy="${cy}" r="${r}"/><circle cx="${cx + 1000}" cy="${cy}" r="${r}"/>`,
-        );
-      }
-      const id = `cg-${cls}`;
-      return `<svg class="bank ${cls}" viewBox="0 0 2000 400" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--cloud-top)"/><stop offset="1" style="stop-color:var(--cloud-shade)"/></linearGradient></defs><g fill="url(#${id})"><rect x="0" y="${base}" width="2000" height="${400 - base}"/>${puffs.join("")}</g></svg>`;
-    }
-    const CLOUDS = raw(
-      cloudBank("b-back", 7, 26, 250, 40, 95) +
-        cloudBank("b-mid", 19, 20, 270, 60, 130) +
-        cloudBank("b-front", 31, 14, 300, 90, 170),
-    );
-
     // โครงหน้าเข้าสู่ระบบ: การ์ดกระจกใบเดียวกลางจอ บนท้องฟ้าและทะเลเมฆที่เคลื่อนไหว
     function authLayout(inner) {
       const n = bkkNow();
       return html`<main class="auth t-${dayPart(n.minutes)}">
         <div class="auth-sky" aria-hidden="true">
+          <div class="cloud-pan"><div class="cloud-strip"></div></div>
+          <div class="cloud-tint"></div>
           <span class="stars"></span>
-          <b class="streak s1"></b><b class="streak s2"></b>
-          <div class="clouds">${CLOUDS}</div>
         </div>
         <div class="auth-clock" aria-hidden="true">
           <b id="auth-time"></b><span id="auth-date"></span>
