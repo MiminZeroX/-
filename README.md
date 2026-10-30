@@ -115,6 +115,19 @@ node server.js --tls-cert=cert.pem --tls-key=key.pem   # เปิด HTTPS
 
 หรือใช้ตัวแปรแวดล้อม `PORT`, `HOST`, `DATA_DIR`, `ALLOWED_HOSTS`, `TLS_CERT`, `TLS_KEY`
 
+### เปิดใช้ผ่านอินเทอร์เน็ต (เครื่องคลาวด์ + HTTPS)
+
+ดูขั้นตอนใน [deploy/README.md](deploy/README.md) — สคริปต์ `deploy/install-vm.sh` ติดตั้งทุกอย่างบน VM Ubuntu ให้ในคำสั่งเดียว
+(HTTPS อัตโนมัติ, เริ่มระบบเองเมื่อเปิดเครื่อง, ไฟร์วอลล์) ตัวเลือกที่ใช้ในโหมดนี้:
+
+```bash
+--public-url=https://booking.example.go.th   # ที่อยู่ที่ผู้ใช้เปิด (ใช้ทำลิงก์/QR และเปิดคุกกี้แบบ Secure)
+--trust-proxy=loopback                       # รับ IP จริงของผู้ใช้จาก proxy ด้านหน้า (Caddy/Nginx)
+--office-ips=203.0.113.10                    # IP สาธารณะของสำนักงาน ที่ทุกคนใช้ร่วมกัน
+```
+
+หรือตัวแปร `PUBLIC_URL`, `TRUST_PROXY`, `OFFICE_IPS`
+
 ### เปิดใช้ HTTPS (แนะนำเมื่อ Wi-Fi ใช้ร่วมกับผู้มาติดต่อ)
 
 HTTP ธรรมดาอาจถูกดักอ่านรหัสผ่านผู้ดูแลได้บนเครือข่ายที่ใช้ร่วมกัน วิธีที่ง่ายที่สุดคือใช้ [mkcert](https://github.com/FiloSottile/mkcert)

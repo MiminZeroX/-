@@ -20,7 +20,8 @@ const {
   createHostCheck,
   hostName,
   parseCookies,
-  clientIp,
+  ipMatcher,
+  proxyAwareIp,
   createStatic,
 } = require("./http");
 const {
@@ -118,7 +119,19 @@ function createApp(opts = {}) {
   const store = new Store(dataDir, {
     initialPassword: opts.initialPassword,
   }).load();
-  const secureCookie = !!opts.secure;
+  // ที่อยู่สาธารณะเมื่อรันบนคลาวด์ (เช่น https://booking.example.go.th) ใช้ทำลิงก์/QR
+  // และบอกว่าผู้ใช้เข้าผ่าน HTTPS แม้ proxy ด้านหน้าจะส่งต่อมาแบบ HTTP
+  const publicUrl = opts.publicUrl ? new URL(opts.publicUrl).origin : "";
+  const secureCookie = !!opts.secure || publicUrl.startsWith("https:");
+  // proxy ที่เชื่อถือ X-Forwarded-For ได้ และ IP สาธารณะของสำนักงาน (หลายคนใช้ IP เดียวกัน)
+  const clientIp = proxyAwareIp(
+    opts.trustProxy?.length ? ipMatcher(opts.trustProxy) : null,
+  );
+  const isOfficeIp = ipMatcher(opts.officeIps || []);
+  // ขยายเพดานต่อ IP สำหรับเครือข่ายสำนักงาน ไม่ให้คนหนึ่งใช้งานเยอะแล้วทุกคนโดนจำกัดไปด้วย
+  // (การจำกัดต่อบัญชีและต่อรหัสการจองยังคงเดิม จึงยังกันการเดารหัสได้)
+  const OFFICE_FACTOR = 20;
+  const ipFactor = (ip) => (isOfficeIp(ip) ? OFFICE_FACTOR : 1);
   // รหัสเฉพาะของจอหน้าห้อง (ใช้เช็คอินโดยไม่ต้องมีโทเคนผู้จอง) — สุ่มครั้งแรกแล้วเก็บไว้
   if (!/^[A-Za-z0-9_-]{32,}$/.test(store.db.kioskKey || "")) {
     store.db.kioskKey = randomToken(24);
@@ -127,7 +140,10 @@ function createApp(opts = {}) {
   const serveStatic = createStatic(publicDir);
   const hostAllowed = createHostCheck(
     opts.hostname === undefined ? os.hostname() : opts.hostname,
-    opts.allowedHosts || [],
+    [
+      ...(opts.allowedHosts || []),
+      ...(publicUrl ? [new URL(publicUrl).hostname] : []),
+    ],
   );
   const sessions = new Map(); // sha256(token) -> { adminId, expires, ip, createdAt }
   const sseClients = new Set();
@@ -150,7 +166,16 @@ function createApp(opts = {}) {
   let hashing = 0;
   const startedAt = Date.now();
   let port = opts.port || 0;
-  let scheme = opts.secure ? "https" : "http";
+  let scheme = secureCookie ? "https" : "http";
+  const serverUrls = () =>
+    publicUrl
+      ? [publicUrl]
+      : port
+        ? lanAddresses().map(
+            (ip) =>
+              `${scheme}://${ip}${port === (scheme === "https" ? 443 : 80) ? "" : `:${port}`}`,
+          )
+        : [];
   const timers = [];
   const S = () => store.db.settings;
 
@@ -516,7 +541,10 @@ function createApp(opts = {}) {
         `จองจากอุปกรณ์นี้ถี่เกินไป ลองใหม่ในอีก ${Math.ceil(rl.retryAfter / 60)} นาที หรือติดต่อผู้ดูแลห้องประชุม`,
       );
     if (!admin) {
-      const rl = limits.booking.check(ctx.ip, s.bookingRateLimitPerHour);
+      const rl = limits.booking.check(
+        ctx.ip,
+        s.bookingRateLimitPerHour * ipFactor(ctx.ip),
+      );
       if (!rl.ok) throw tooMany(rl);
     }
 
@@ -557,7 +585,7 @@ function createApp(opts = {}) {
       // นับตามจำนวนการจองที่จะสร้างจริง (จองซ้ำหลายวัน = หลายครั้ง)
       const rl = limits.booking.check(
         ctx.ip,
-        s.bookingRateLimitPerHour,
+        s.bookingRateLimitPerHour * ipFactor(ctx.ip),
         good.length,
       );
       if (!rl.ok) throw tooMany(rl);
@@ -568,10 +596,11 @@ function createApp(opts = {}) {
           ACTIVE.has(x.status) &&
           !hasEnded(x),
       ).length;
-      if (fromDevice + good.length > MAX_ACTIVE_PER_DEVICE)
+      const maxActive = MAX_ACTIVE_PER_DEVICE * ipFactor(ctx.ip);
+      if (fromDevice + good.length > maxActive)
         throw new HttpError(
           400,
-          `อุปกรณ์นี้มีการจองที่ยังไม่ถึงกำหนด ${fromDevice} รายการแล้ว (สูงสุด ${MAX_ACTIVE_PER_DEVICE}) กรุณาติดต่อผู้ดูแลห้องประชุม`,
+          `อุปกรณ์นี้มีการจองที่ยังไม่ถึงกำหนด ${fromDevice} รายการแล้ว (สูงสุด ${maxActive}) กรุณาติดต่อผู้ดูแลห้องประชุม`,
         );
     }
 
@@ -623,7 +652,11 @@ function createApp(opts = {}) {
       return bk;
     });
     if (!admin)
-      limits.booking.hit(ctx.ip, s.bookingRateLimitPerHour, created.length);
+      limits.booking.hit(
+        ctx.ip,
+        s.bookingRateLimitPerHour * ipFactor(ctx.ip),
+        created.length,
+      );
     store.saveDb();
 
     const first = created[0];
@@ -883,12 +916,7 @@ function createApp(opts = {}) {
     departments: store.db.departments,
     holidays: store.db.holidays,
     now: bkkNow(),
-    serverUrls: port
-      ? lanAddresses().map(
-          (ip) =>
-            `${scheme}://${ip}${port === (scheme === "https" ? 443 : 80) ? "" : `:${port}`}`,
-        )
-      : [],
+    serverUrls: serverUrls(),
   }));
 
   route("GET", "/api/bookings", (ctx) => {
@@ -923,7 +951,7 @@ function createApp(opts = {}) {
   });
 
   route("POST", "/api/my", (ctx) => {
-    const rl = limits.my.hit(ctx.ip);
+    const rl = limits.my.hit(ctx.ip, limits.my.limit * ipFactor(ctx.ip));
     if (!rl.ok)
       throw new HttpError(429, "เรียกดูบ่อยเกินไป กรุณาลองใหม่ภายหลัง");
     const tokens = Array.isArray(ctx.body.tokens)
@@ -947,7 +975,10 @@ function createApp(opts = {}) {
   });
 
   route("POST", "/api/lookup", (ctx) => {
-    const rl = limits.lookup.hit(ctx.ip);
+    const rl = limits.lookup.hit(
+      ctx.ip,
+      limits.lookup.limit * ipFactor(ctx.ip),
+    );
     if (!rl.ok) throw new HttpError(429, "ค้นหาบ่อยเกินไป กรุณาลองใหม่ภายหลัง");
     const code = cleanStr(ctx.body.code, 30).toUpperCase();
     const phone = digits(ctx.body.phone);
@@ -1131,7 +1162,7 @@ function createApp(opts = {}) {
     if (sseClients.size >= 1000)
       throw new HttpError(503, "มีผู้เชื่อมต่อมากเกินไป");
     const open = ssePerIp.get(ctx.ip) || 0;
-    if (open >= SSE_PER_IP)
+    if (open >= SSE_PER_IP * ipFactor(ctx.ip))
       throw new HttpError(
         429,
         "อุปกรณ์นี้เปิดหน้าระบบไว้หลายหน้าต่างเกินไป กรุณาปิดหน้าที่ไม่ใช้",
@@ -1161,7 +1192,8 @@ function createApp(opts = {}) {
   // ---------- admin: session ----------
   route("POST", "/api/admin/login", async (ctx) => {
     const username = cleanStr(ctx.body.username, 64).toLowerCase();
-    const rl = limits.login.check(ctx.ip);
+    const loginLimit = limits.login.limit * ipFactor(ctx.ip);
+    const rl = limits.login.check(ctx.ip, loginLimit);
     const rlUser = limits.loginUser.check(username);
     if (!rl.ok || !rlUser.ok) {
       const wait = Math.max(rl.retryAfter || 0, rlUser.retryAfter || 0);
@@ -1192,7 +1224,7 @@ function createApp(opts = {}) {
       hashing--;
     }
     if (!ok) {
-      limits.login.hit(ctx.ip);
+      limits.login.hit(ctx.ip, loginLimit);
       limits.loginUser.hit(username);
       log(
         ctx,
@@ -2537,12 +2569,12 @@ function createApp(opts = {}) {
   route(
     "GET",
     "/api/admin/system",
-    () => ({
+    (ctx) => ({
+      yourIp: ctx.ip,
+      officeNetwork: isOfficeIp(ctx.ip),
       port,
-      lanUrls: lanAddresses().map(
-        (ip) =>
-          `${scheme}://${ip}${port === (scheme === "https" ? 443 : 80) ? "" : `:${port}`}`,
-      ),
+      lanUrls: serverUrls(),
+      cloud: !!publicUrl,
       hostname: os.hostname(),
       platform: `${os.type()} ${os.release()} (${os.arch()})`,
       node: process.version,

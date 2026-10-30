@@ -8,12 +8,17 @@
 //            นอกเหนือจาก IP และชื่อเครื่อง หรือใช้ตัวแปร ALLOWED_HOSTS)
 //            --tls-cert=cert.pem --tls-key=key.pem   (เปิด HTTPS ด้วยใบรับรองของหน่วยงาน/mkcert
 //            หรือใช้ตัวแปร TLS_CERT, TLS_KEY — แนะนำเมื่อใช้ Wi-Fi ร่วมกับผู้มาติดต่อ)
+// รันบนคลาวด์ (ดู deploy/README.md):
+//            --public-url=https://booking.example.go.th   (ที่อยู่ที่ผู้ใช้เปิด ใช้ทำลิงก์/QR — PUBLIC_URL)
+//            --trust-proxy=loopback   (เชื่อ IP จริงที่ proxy ด้านหน้า เช่น Caddy ส่งมา — TRUST_PROXY)
+//            --office-ips=203.0.113.10   (IP สาธารณะของสำนักงานที่ทุกคนใช้ร่วมกัน — OFFICE_IPS)
 
 const http = require("http");
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const { createApp, lanAddresses } = require("./src/app");
+const { ipMatcher } = require("./src/http");
 
 const [major] = process.versions.node.split(".").map(Number);
 if (major < 18) {
@@ -41,6 +46,28 @@ const allowedHosts = String(
   .map((h) => h.trim())
   .filter(Boolean);
 
+const list = (name, env) =>
+  String(arg(name, process.env[env] || ""))
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+const trustProxy = list("trust-proxy", "TRUST_PROXY");
+const officeIps = list("office-ips", "OFFICE_IPS");
+let publicUrl = String(arg("public-url", process.env.PUBLIC_URL || "")).trim();
+try {
+  ipMatcher(trustProxy);
+  ipMatcher(officeIps);
+  if (publicUrl) {
+    const u = new URL(publicUrl);
+    if (!/^https?:$/.test(u.protocol) || u.pathname !== "/" || u.search)
+      throw new Error("ต้องเป็นที่อยู่เว็บแบบ https://ชื่อโดเมน (ไม่มี path)");
+    publicUrl = u.origin;
+  }
+} catch (err) {
+  console.error(`\n  ตัวเลือกไม่ถูกต้อง: ${err.message}\n`);
+  process.exit(1);
+}
+
 const tlsCert = arg("tls-cert", process.env.TLS_CERT || "");
 const tlsKey = arg("tls-key", process.env.TLS_KEY || "");
 let tls = null;
@@ -57,7 +84,15 @@ const scheme = tls ? "https" : "http";
 // ไฟล์ server.pid บอกสคริปต์อื่น (เช่น reset-admin) ว่าระบบกำลังทำงานอยู่
 const pidFile = path.join(dataDir, "server.pid");
 
-const app = createApp({ dataDir, port, allowedHosts, secure: !!tls });
+const app = createApp({
+  dataDir,
+  port,
+  allowedHosts,
+  secure: !!tls,
+  publicUrl,
+  trustProxy,
+  officeIps,
+});
 const handler = (req, res) => app.handle(req, res);
 const server = tls
   ? https.createServer({ ...tls, minVersion: "TLSv1.2" }, handler)
@@ -89,9 +124,12 @@ server.listen(port, host, () => {
   } catch {
     /* ไม่สำคัญ */
   }
-  const urls = lanAddresses().map(
-    (ip) => `${scheme}://${ip}${port === (tls ? 443 : 80) ? "" : `:${port}`}`,
-  );
+  const urls = publicUrl
+    ? [publicUrl]
+    : lanAddresses().map(
+        (ip) =>
+          `${scheme}://${ip}${port === (tls ? 443 : 80) ? "" : `:${port}`}`,
+      );
   const line = "-".repeat(58);
   const out = [
     "",
@@ -100,7 +138,9 @@ server.listen(port, host, () => {
     `  ${line}`,
     "   ระบบพร้อมใช้งานแล้ว",
     "",
-    "   เปิดจากเครื่องอื่นที่เชื่อม Wi-Fi/LAN เดียวกัน:",
+    publicUrl
+      ? "   เปิดใช้งานได้จากทุกที่ที่:"
+      : "   เปิดจากเครื่องอื่นที่เชื่อม Wi-Fi/LAN เดียวกัน:",
     ...(urls.length
       ? urls.map((u) => `     ${u}`)
       : ["     (ไม่พบเครือข่าย — ตรวจสอบการเชื่อมต่อ Wi-Fi/LAN)"]),
@@ -120,7 +160,15 @@ server.listen(port, host, () => {
       "      ระบบจะให้ตั้งรหัสผ่านใหม่เมื่อเข้าสู่ระบบครั้งแรก แล้วลบไฟล์นี้ให้อัตโนมัติ)",
     );
   }
-  if (!tls)
+  if (publicUrl && trustProxy.length)
+    out.push(
+      "",
+      `   รับ IP จริงของผู้ใช้จาก proxy: ${trustProxy.join(", ")}`,
+      officeIps.length
+        ? `   IP สำนักงาน (ผ่อนเพดานการใช้งาน): ${officeIps.join(", ")}`
+        : "   ยังไม่ได้กำหนด IP สำนักงาน (--office-ips) — ดูได้ในหน้าผู้ดูแล › การเชื่อมต่อ",
+    );
+  if (!tls && !publicUrl.startsWith("https:"))
     out.push(
       "",
       "   หมายเหตุ: ใช้ HTTP ธรรมดา — หาก Wi-Fi นี้ใช้ร่วมกับผู้มาติดต่อ แนะนำให้เปิด HTTPS",

@@ -1355,3 +1355,108 @@ describe("ความปลอดภัย: ผลจากการตรว�
     }
   });
 });
+
+describe("รันบนคลาวด์: IP จริงหลัง proxy และเครือข่ายสำนักงาน", () => {
+  const { ipMatcher, proxyAwareIp } = require("../src/http");
+  const fakeReq = (peer, xff) => ({
+    socket: { remoteAddress: peer },
+    headers: xff === undefined ? {} : { "x-forwarded-for": xff },
+  });
+
+  it("ไม่เชื่อ X-Forwarded-For ถ้าไม่ได้ตั้ง proxy ที่เชื่อถือ (กันปลอม IP)", () => {
+    const ipOf = proxyAwareIp(null);
+    assert.equal(
+      ipOf(fakeReq("::ffff:198.51.100.7", "1.2.3.4")),
+      "198.51.100.7",
+    );
+  });
+
+  it("อ่าน IP จริงจาก proxy ที่เชื่อถือ และไม่สนค่าที่ผู้ใช้ปลอมมาเอง", () => {
+    const ipOf = proxyAwareIp(ipMatcher(["loopback", "10.0.0.0/8"]));
+    assert.equal(ipOf(fakeReq("127.0.0.1", "198.51.100.7")), "198.51.100.7");
+    // ผู้ใช้ส่ง X-Forwarded-For ปลอมมา proxy ต่อท้ายด้วย IP จริง
+    assert.equal(
+      ipOf(fakeReq("127.0.0.1", "1.2.3.4, 198.51.100.7, 10.1.2.3")),
+      "198.51.100.7",
+    );
+    assert.equal(ipOf(fakeReq("127.0.0.1", "junk")), "127.0.0.1");
+    assert.equal(ipOf(fakeReq("127.0.0.1")), "127.0.0.1");
+    // คำขอที่ไม่ได้มาจาก proxy ใช้ IP ที่เชื่อมต่อจริงเสมอ
+    assert.equal(ipOf(fakeReq("203.0.113.9", "1.2.3.4")), "203.0.113.9");
+  });
+
+  it("ตรวจรูปแบบ IP/เครือข่ายที่ตั้งค่าไว้", () => {
+    const m = ipMatcher(["203.0.113.0/24", "2001:db8::/32"]);
+    assert.ok(m("203.0.113.77"));
+    assert.ok(m("2001:db8::1"));
+    assert.ok(!m("198.51.100.1"));
+    assert.ok(!m("not-an-ip"));
+    assert.throws(() => ipMatcher(["203.0.113.0/40"]));
+    assert.throws(() => ipMatcher(["example.com"]));
+  });
+
+  it("ล็อกเฉพาะ IP ที่เดารหัสผิด ไม่ล็อกทุกคนที่มาทาง proxy เดียวกัน และผ่อนเพดานให้ IP สำนักงาน", async () => {
+    const t = await startServer({
+      trustProxy: ["loopback"],
+      officeIps: ["203.0.113.10"],
+      publicUrl: "https://booking.example.go.th",
+    });
+    const send = async (xff, url, body, cookie) => {
+      const res = await fetch(t.base + url, {
+        method: body ? "POST" : "GET",
+        headers: {
+          "x-requested-with": "br",
+          "x-forwarded-for": xff,
+          ...(body ? { "content-type": "application/json" } : {}),
+          ...(cookie ? { cookie } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return {
+        status: res.status,
+        data: await res.json(),
+        cookie: res.headers.get("set-cookie") || "",
+      };
+    };
+    try {
+      for (let i = 0; i < 8; i++)
+        await send("198.51.100.20", "/api/admin/login", {
+          username: "nobody",
+          password: "wrong-password-x",
+        });
+      const blocked = await send("198.51.100.20", "/api/admin/login", {
+        username: "nobody",
+        password: "wrong-password-x",
+      });
+      assert.equal(blocked.status, 429);
+      // ผู้ใช้อีกคน (IP อื่น) ยังเข้าสู่ระบบได้ตามปกติ
+      const other = await send("198.51.100.21", "/api/admin/login", {
+        username: "admin",
+        password: INITIAL_PW,
+      });
+      assert.equal(other.status, 200);
+      assert.match(other.cookie, /; Secure/);
+      const sys = await send(
+        "1.2.3.4, 198.51.100.21",
+        "/api/admin/system",
+        undefined,
+        other.cookie.split(";")[0],
+      );
+      // บัญชียังต้องเปลี่ยนรหัสผ่าน: ระบบตอบ 403 แต่ไม่ใช่ 401 = เซสชันผูกกับ IP จริงถูกต้อง
+      assert.equal(sys.status, 403);
+
+      // IP สำนักงาน: ผิดเกิน 8 ครั้งยังไม่ถูกพักทั้งสำนักงาน
+      for (let i = 0; i < 10; i++) {
+        const r = await send("203.0.113.10", "/api/admin/login", {
+          username: `staff${i}`,
+          password: "wrong-password-x",
+        });
+        assert.equal(r.status, 401);
+      }
+      const cfg = await send("203.0.113.10", "/api/config");
+      assert.deepEqual(cfg.data.serverUrls, ["https://booking.example.go.th"]);
+    } finally {
+      t.close();
+    }
+  });
+});

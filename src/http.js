@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("fs");
+const net = require("net");
 const path = require("path");
 const zlib = require("zlib");
 
@@ -128,9 +129,66 @@ function parseCookies(header) {
   return out;
 }
 
+const normalizeIp = (ip) => {
+  const s = String(ip || "").trim();
+  return s.startsWith("::ffff:") ? s.slice(7) : s;
+};
+
 function clientIp(req) {
-  const ip = req.socket?.remoteAddress || "";
-  return ip.startsWith("::ffff:") ? ip.slice(7) : ip;
+  return normalizeIp(req.socket?.remoteAddress);
+}
+
+// ---------- รายการ IP / เครือข่าย ----------
+// รับรายการเช่น ["loopback", "10.0.0.5", "203.0.113.0/24", "2001:db8::/32"]
+// คืนฟังก์ชันตรวจว่า IP อยู่ในรายการหรือไม่ — ค่าที่ไม่ถูกต้องจะ throw พร้อมบอกค่าที่ผิด
+function ipMatcher(list) {
+  const bl = new net.BlockList();
+  for (const raw of list || []) {
+    const entry = String(raw).trim();
+    if (!entry) continue;
+    if (entry === "loopback") {
+      bl.addSubnet("127.0.0.0", 8, "ipv4");
+      bl.addAddress("::1", "ipv6");
+      continue;
+    }
+    const [addr, bits, extra] = entry.split("/");
+    const type = net.isIP(addr);
+    const max = type === 6 ? 128 : 32;
+    if (!type || extra !== undefined)
+      throw new Error(`รูปแบบ IP ไม่ถูกต้อง: "${entry}"`);
+    const family = type === 6 ? "ipv6" : "ipv4";
+    if (bits === undefined) {
+      bl.addAddress(addr, family);
+    } else {
+      const n = Number(bits);
+      if (!/^\d{1,3}$/.test(bits) || n > max)
+        throw new Error(`รูปแบบเครือข่ายไม่ถูกต้อง: "${entry}"`);
+      bl.addSubnet(addr, n, family);
+    }
+  }
+  return (ip) => {
+    const type = net.isIP(ip);
+    return type ? bl.check(ip, type === 6 ? "ipv6" : "ipv4") : false;
+  };
+}
+
+// IP จริงของผู้ใช้เมื่อระบบอยู่หลัง reverse proxy (เช่น Caddy/Nginx ที่ทำ HTTPS ให้)
+// เชื่อ X-Forwarded-For เฉพาะเมื่อคำขอมาจาก proxy ที่กำหนดไว้ (trusted) และอ่านจากขวาไปซ้าย
+// หยุดที่ IP แรกที่ไม่ใช่ proxy — ผู้ใช้ปลอม header มาเองก็จะได้ IP จริงที่ proxy เห็น ไม่ใช่ค่าที่ปลอม
+function proxyAwareIp(trusted) {
+  if (!trusted) return clientIp;
+  return (req) => {
+    let ip = clientIp(req);
+    if (!trusted(ip)) return ip;
+    const hops = String(req.headers["x-forwarded-for"] || "").split(",");
+    for (let i = hops.length - 1; i >= 0; i--) {
+      const hop = normalizeIp(hops[i]);
+      if (!net.isIP(hop)) break;
+      ip = hop;
+      if (!trusted(hop)) break;
+    }
+    return ip;
+  };
 }
 
 // ---------- ตรวจชื่อโฮสต์ (กัน DNS rebinding) ----------
@@ -308,6 +366,8 @@ module.exports = {
   redirect,
   createHostCheck,
   hostName,
+  ipMatcher,
+  proxyAwareIp,
   parseCookies,
   clientIp,
   createStatic,
