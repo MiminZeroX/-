@@ -8,6 +8,7 @@ This document has two parts:
 - **Part B — IT:** installation, server, HTTPS, backup/migration, security, troubleshooting and the handover checklist.
 
 The screens are in Thai; each Thai label is given in **bold** followed by its English meaning.
+
 Staff guide: [user-guide.en.md](user-guide.en.md) · **Thai version:** [admin-guide.th.md](admin-guide.th.md)
 
 ---

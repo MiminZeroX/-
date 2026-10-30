@@ -6,7 +6,8 @@ This guide is for all staff who want to check room schedules and book a meeting 
 It works on computers, tablets and phones.
 
 > The system's screens are in Thai. This guide gives each Thai label in **bold** followed by its English meaning, e.g. **จองห้อง** (Book a room).
-> **Thai version:** [user-guide.th.md](user-guide.th.md)
+
+**Thai version:** [user-guide.th.md](user-guide.th.md)
 
 ---
 

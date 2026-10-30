@@ -7,3 +7,5 @@
 | ติดตั้งบนคลาวด์ (VM + HTTPS) · Cloud deployment   | [../deploy/README.md](../deploy/README.md) | —                                      | —                                                            |
 
 ภาพหน้าจอในคู่มือใช้ข้อมูลตัวอย่าง · Screenshots use sample data.
+
+สร้าง PDF ใหม่หลังแก้ไฟล์ .md · Rebuild PDFs after editing: `node docs/build/build-pdf.js` (ต้องมี pandoc, poppler-utils และ Playwright · requires pandoc, poppler-utils and Playwright)
