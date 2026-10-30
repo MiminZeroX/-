@@ -1065,15 +1065,6 @@ button.chip:active {
   height: 40px;
   stroke-width: 1.6;
 }
-@keyframes floaty {
-  0%,
-  100% {
-    transform: translateY(0) rotate(-2deg);
-  }
-  50% {
-    transform: translateY(-6px) rotate(2deg);
-  }
-}
 
 /* skeleton */
 .skel {
@@ -1771,24 +1762,44 @@ table.table {
   text-decoration: none !important;
   min-width: 0;
 }
+/* ตราสำนักงานเขต (SVG) — วาดผ่าน mask จึงเปลี่ยนสีตามบริบทได้ (เขียวบนพื้นสว่าง ขาวบนพื้นเขียว) */
+:root {
+  --seal: #0a754d;
+}
+[data-theme="dark"] {
+  --seal: #5fd3a0;
+}
+.seal {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--seal-color, var(--seal));
+  -webkit-mask: url(brand/seal.svg) center / contain no-repeat;
+  mask: url(brand/seal.svg) center / contain no-repeat;
+}
+@media (forced-colors: active) {
+  .seal {
+    background: CanvasText;
+  }
+}
 .brand-mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  padding: 2px;
+  border-radius: 50%;
   flex: none;
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: var(--brand);
-  color: var(--on-brand);
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--border);
   transition: transform var(--t3) var(--ease-out);
+}
+[data-theme="dark"] .brand-mark {
+  background: var(--surface-2);
 }
 .brand:hover .brand-mark {
   transform: scale(1.06);
-}
-.brand-mark svg {
-  width: 20px;
-  height: 20px;
 }
 .brand-mark img {
   width: 100%;
@@ -2110,6 +2121,17 @@ table.table {
   gap: 14px;
   padding: clamp(28px, 7vw, 76px) 0 clamp(20px, 4vw, 36px);
   text-align: center;
+}
+.hero-seal {
+  display: block;
+  width: clamp(64px, 5vw + 40px, 84px);
+  aspect-ratio: 1;
+  margin-bottom: 4px;
+}
+.hero-seal img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .eyebrow {
   margin: 0;
@@ -4202,62 +4224,316 @@ button.agenda-item:hover {
   --side-w: 264px;
 }
 
-/* ---------- login ---------- */
-.login-wrap {
+/* ---------- login (การ์ดสองฝั่งบนพื้นหลังท้องฟ้า) ---------- */
+.auth {
+  position: relative;
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px 16px;
+  padding: clamp(16px, 4vw, 48px) 16px;
+  overflow: hidden;
+  isolation: isolate;
 }
-.login-card {
-  width: min(420px, 100%);
-  padding: 32px 28px 28px;
+/* ท้องฟ้าและเมฆวาดด้วย CSS ล้วน (ไม่ใช้ภาพถ่าย) */
+.auth-sky {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      60% 40% at 15% 92%,
+      #fff 0,
+      rgba(255, 255, 255, 0.85) 35%,
+      transparent 70%
+    ),
+    radial-gradient(
+      55% 38% at 85% 95%,
+      #fff 0,
+      rgba(255, 255, 255, 0.8) 35%,
+      transparent 70%
+    ),
+    radial-gradient(45% 30% at 50% 108%, #fff 0, transparent 70%),
+    radial-gradient(
+      40% 18% at 20% 30%,
+      rgba(255, 255, 255, 0.55),
+      transparent 70%
+    ),
+    radial-gradient(
+      35% 14% at 78% 22%,
+      rgba(255, 255, 255, 0.5),
+      transparent 70%
+    ),
+    linear-gradient(180deg, #4f97d6 0%, #7fb6e6 38%, #bcd9f2 68%, #eaf3fb 100%);
+}
+/* เส้นโค้งบาง ๆ รอบการ์ด */
+.auth-sky i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--d);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  transform: translate(-50%, -50%);
+}
+.auth-sky i:nth-child(1) {
+  --d: 120vmax;
+}
+.auth-sky i:nth-child(2) {
+  --d: 150vmax;
+  opacity: 0.6;
+}
+.auth-sky i:nth-child(3) {
+  --d: 180vmax;
+  opacity: 0.35;
+}
+[data-theme="dark"] .auth-sky {
+  background:
+    radial-gradient(
+      60% 40% at 15% 95%,
+      rgba(120, 140, 170, 0.35),
+      transparent 70%
+    ),
+    radial-gradient(
+      55% 38% at 85% 98%,
+      rgba(120, 140, 170, 0.3),
+      transparent 70%
+    ),
+    linear-gradient(180deg, #050a14 0%, #0d1830 55%, #1a2a45 100%);
+}
+[data-theme="dark"] .auth-sky i {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.auth-card {
+  position: relative;
+  display: grid;
+  width: min(980px, 100%);
+  border-radius: 32px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: saturate(1.6) blur(24px);
+  -webkit-backdrop-filter: saturate(1.6) blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 40px 90px -30px rgba(20, 50, 90, 0.45),
+    0 0 0 6px rgba(255, 255, 255, 0.35);
+  animation: rise var(--t4) var(--ease-out);
+}
+[data-theme="dark"] .auth-card {
+  background: rgba(28, 28, 30, 0.88);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 40px 90px -30px rgba(0, 0, 0, 0.8),
+    0 0 0 6px rgba(255, 255, 255, 0.04);
+}
+@media (min-width: 860px) {
+  .auth-card {
+    grid-template-columns: 1fr 1fr;
+    min-height: 600px;
+  }
+}
+
+.auth-form {
+  display: grid;
+  align-content: center;
+  padding: clamp(28px, 5vw, 56px) clamp(22px, 5vw, 56px);
+}
+.auth-form > form,
+.auth-form > div {
   display: grid;
   gap: 18px;
-  animation: rise var(--t4) var(--ease-out);
-  box-shadow: var(--shadow-3);
+  width: min(380px, 100%);
+  margin: 0 auto;
 }
-.login-card .brand-mark {
-  width: 56px;
-  height: 56px;
-  border-radius: 18px;
-}
-.login-card .brand-mark svg {
-  width: 32px;
-  height: 32px;
-}
-.login-head {
-  display: grid;
-  gap: 12px;
-  justify-items: start;
-}
-.login-head h1 {
-  font-size: 1.5rem;
-}
-.login-head p {
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--text-2);
-  font-size: 0.92rem;
 }
+.auth-brand .brand-mark {
+  width: 40px;
+  height: 40px;
+}
+.auth-head {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.auth-head h1 {
+  font-size: clamp(1.7rem, 1.4rem + 1.2vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.auth-head p {
+  color: var(--text-2);
+}
+.auth-form .input {
+  min-height: 50px;
+  border-radius: 14px;
+  background: var(--surface);
+}
+.auth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.auth-row .link-btn {
+  min-height: 32px;
+}
+#login-err:empty {
+  display: none;
+}
+/* ปุ่มหลักสีเข้มแบบภาพอ้างอิง */
+.auth-submit {
+  --btn-bg: var(--text);
+  --btn-fg: var(--bg);
+  min-height: 52px;
+  border-radius: 14px;
+}
+.auth-submit:hover {
+  --btn-bg: color-mix(in srgb, var(--text) 85%, var(--brand));
+}
+.auth-foot {
+  text-align: center;
+  font-size: 0.9rem;
+}
+.auth-foot a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--text-2);
+}
+.auth-form code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+/* แผงขวา: ใบไม้สีเขียว + ตราสำนักงานในกรอบกระจก */
+.auth-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 190px;
+  background: #0a5c3b;
+  color: #fff;
+  overflow: hidden;
+  order: -1;
+}
+@media (min-width: 860px) {
+  .auth-art {
+    order: 0;
+    min-height: 100%;
+  }
+}
+.auth-leaves {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.auth-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      60% 45% at 50% 45%,
+      rgba(0, 0, 0, 0) 0,
+      rgba(0, 0, 0, 0.18) 100%
+    ),
+    linear-gradient(180deg, rgba(0, 0, 0, 0) 55%, rgba(0, 30, 18, 0.55) 100%);
+  pointer-events: none;
+}
+.auth-glass {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: clamp(116px, 14vw, 196px);
+  aspect-ratio: 1;
+  padding: clamp(14px, 2vw, 26px);
+  border-radius: clamp(26px, 3vw, 40px);
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow:
+    0 30px 60px -20px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  animation: floaty 6s var(--ease-soft) infinite;
+}
+.auth-glass .seal {
+  --seal-color: #fff;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.25));
+}
+.auth-glass img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  background: #fff;
+}
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+[data-motion="reduced"] .auth-glass,
+[data-motion="off"] .auth-glass {
+  animation: none;
+}
+.auth-org {
+  position: absolute;
+  z-index: 1;
+  left: clamp(20px, 3vw, 32px);
+  right: 20px;
+  bottom: clamp(16px, 3vw, 30px);
+  display: grid;
+  gap: 2px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+}
+.auth-org b {
+  font-size: clamp(1rem, 0.9rem + 0.6vw, 1.35rem);
+  font-weight: 700;
+}
+.auth-org span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  opacity: 0.85;
+}
+@media (max-width: 859px) {
+  .auth-org {
+    display: none;
+  }
+}
+
 .pw-wrap {
   position: relative;
 }
 .pw-wrap .input {
-  padding-right: 48px;
+  padding-right: 52px;
 }
 .pw-wrap .pw-eye {
   position: absolute;
   right: 4px;
   top: 50%;
   transform: translateY(-50%);
-}
-.login-foot {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 0.86rem;
-  color: var(--text-3);
-  flex-wrap: wrap;
 }
 
 /* ---------- shell ---------- */
@@ -4352,8 +4628,8 @@ button.agenda-item:hover {
   margin-bottom: 6px;
 }
 .side-brand .brand-mark {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
 }
 .side-brand b {
   display: block;
@@ -5700,19 +5976,18 @@ button.agenda-item:hover {
   gap: 16px;
 }
 .ds-top .brand-mark {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
+  width: 56px;
+  height: 56px;
+  padding: 3px;
+  border-radius: 50%;
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: linear-gradient(140deg, #34d399, #0b7a4b);
-  color: #fff;
+  background: #fff;
   flex: none;
 }
-.ds-top .brand-mark svg {
-  width: 30px;
-  height: 30px;
+.ds-top .brand-mark .seal {
+  --seal-color: #0a754d;
 }
 .ds-top .brand-mark img {
   width: 100%;

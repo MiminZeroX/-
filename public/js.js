@@ -1763,11 +1763,7 @@
       return local && S.serverUrls.length ? S.serverUrls[0] : location.origin;
     }
 
-    const EMBLEM = raw(
-      '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="7" width="22" height="20" rx="4.5"/><path d="M5 13h22M11 4v5M21 4v5"/><path d="m11.5 19.5 3 3 6-6"/></svg>',
-    );
-
-    // เส้นขอบฟ้าย่านบางรัก (ตึกสูง โดม และสายน้ำเจ้าพระยา) แบบเรียบง่าย
+    const EMBLEM = raw('<span class="seal" aria-hidden="true"></span>');
 
     // ------------------------------------------------------------------ my bookings (โทเคนในอุปกรณ์นี้)
     const MY_KEY = "br.my";
@@ -2221,6 +2217,9 @@
       setHTML(
         el,
         html`<section class="hero">
+            <span class="hero-seal" aria-hidden="true"
+              >${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}</span
+            >
             <p class="eyebrow">${s.orgName}</p>
             <h1>จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะ</span></h1>
             <p class="hero-sub">
@@ -3361,7 +3360,7 @@
         $("#print-root"),
         html`<div class="slip">
           <div class="slip-head">
-            ${s.logo ? html`<img src="${s.logo}" alt="" />` : ""}
+            <img src="${s.logo || "brand/seal.svg"}" alt="" />
             <div>
               <h1>${s.orgName}</h1>
               <p>${s.siteName}${s.subtitle ? ` · ${s.subtitle}` : ""}</p>
@@ -5544,9 +5543,7 @@
     const root = $("#root");
     let current = { id: null };
 
-    const EMBLEM = raw(
-      '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="7" width="22" height="20" rx="4.5"/><path d="M5 13h22M11 4v5M21 4v5"/><path d="m11.5 19.5 3 3 6-6"/></svg>',
-    );
+    const EMBLEM = raw('<span class="seal" aria-hidden="true"></span>');
     // ชุดสีห้องที่ผ่านการตรวจสอบสำหรับผู้มีภาวะตาบอดสี (ทั้งธีมสว่างและมืด)
     const ROOM_SWATCHES = ["#0284c7", "#7c3aed", "#ea580c", "#0d9488"];
     const BRANDS = [
@@ -5748,13 +5745,24 @@
       } catch (err) {
         setHTML(
           root,
-          html`<div class="login-wrap">
-            <div class="card login-card">
-              <b>เชื่อมต่อระบบไม่ได้</b>
-              <p class="muted">${err.message}</p>
-            </div>
-          </div>`,
+          authLayout(
+            html`<div>
+              ${authBrand()}
+              <div class="auth-head">
+                <h1>เชื่อมต่อระบบไม่ได้</h1>
+                <p>${err.message}</p>
+              </div>
+              <button
+                class="btn btn-primary btn-lg btn-block auth-submit"
+                type="button"
+                id="auth-retry"
+              >
+                ลองใหม่
+              </button>
+            </div>`,
+          ),
         );
+        $("#auth-retry").onclick = () => location.reload();
         return;
       }
       try {
@@ -5770,41 +5778,121 @@
       }
     }
 
+    // ภาพใบไม้ (SVG) สำหรับแผงด้านขวาของหน้าเข้าสู่ระบบ — วางตำแหน่งแบบกำหนดตายตัว
+    const LEAVES = (() => {
+      const shades = [
+        "#0b6b45",
+        "#0e7d52",
+        "#12905e",
+        "#0a5c3b",
+        "#159a65",
+        "#0c7149",
+      ];
+      const leaf = "M0-100C58-72 62 38 0 100C-62 38-58-72 0-100Z";
+      const veins =
+        "M0-92C5-20 4 40 0 96M2-50 32-70M2-18 38-34M3 14 38 2M3 46 30 38M-1-50-30-70M-1-18-36-34M-2 14-36 2M-2 46-28 38";
+      const spots = [
+        [40, 30, -30, 1.25],
+        [170, -10, 20, 1.1],
+        [300, 40, -12, 1.3],
+        [400, 10, 35, 1],
+        [-10, 170, 15, 1.2],
+        [110, 140, -40, 1.35],
+        [240, 170, 28, 1.15],
+        [370, 160, -20, 1.25],
+        [50, 310, 40, 1.1],
+        [180, 290, -8, 1.3],
+        [310, 320, 22, 1.2],
+        [420, 300, -35, 1.1],
+        [-20, 450, -15, 1.3],
+        [110, 430, 30, 1.2],
+        [240, 460, -25, 1.35],
+        [370, 440, 12, 1.15],
+        [40, 590, 20, 1.25],
+        [170, 580, -35, 1.1],
+        [300, 600, 8, 1.3],
+        [430, 580, -18, 1.2],
+        [100, 220, 60, 0.85],
+        [330, 240, -55, 0.9],
+        [220, 370, 75, 0.8],
+        [60, 520, -60, 0.9],
+      ];
+      const g = spots
+        .map(
+          ([x, y, r, k], i) =>
+            `<g transform="translate(${x} ${y}) rotate(${r}) scale(${k})"><path d="${leaf}" fill="${shades[i % shades.length]}"/><path d="${veins}" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="2.2" stroke-linecap="round"/></g>`,
+        )
+        .join("");
+      return raw(
+        `<svg class="auth-leaves" viewBox="0 0 440 640" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${g}</svg>`,
+      );
+    })();
+
+    // โครงหน้าเข้าสู่ระบบ: การ์ดแยกสองฝั่ง (ฟอร์ม | แผงตราสำนักงาน) บนพื้นหลังท้องฟ้า
+    function authLayout(inner) {
+      const s = A.settings;
+      return html`<main class="auth">
+        <div class="auth-sky" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="auth-card">
+          <section class="auth-form">${inner}</section>
+          <aside class="auth-art" aria-hidden="true">
+            ${LEAVES}
+            <div class="auth-glass">
+              ${s.logo
+                ? html`<img src="${s.logo}" alt="" />`
+                : raw('<span class="seal"></span>')}
+            </div>
+            <div class="auth-org">
+              <b>${s.orgName || "สำนักงานเขตบางรัก"}</b>
+              <span>BANG RAK DISTRICT OFFICE</span>
+            </div>
+          </aside>
+        </div>
+      </main>`;
+    }
+
+    function authBrand() {
+      const s = A.settings;
+      return html`<div class="auth-brand">
+        <span class="brand-mark"
+          >${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}</span
+        >
+        <span>${s.siteName}</span>
+      </div>`;
+    }
+
     function showLogin() {
       const s = A.settings;
       document.title = `เข้าสู่ระบบผู้ดูแล · ${s.siteName}`;
       setHTML(
         root,
-        html`<div class="login-wrap">
-          <form class="card login-card" id="login" autocomplete="on">
-            <div class="login-head">
-              <span class="brand-mark"
-                >${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}</span
-              >
-              <div>
-                <h1>เข้าสู่ระบบผู้ดูแล</h1>
-                <p>${s.siteName} · ${s.orgName}</p>
-              </div>
+        authLayout(
+          html`<form id="login" autocomplete="on" novalidate>
+            ${authBrand()}
+            <div class="auth-head">
+              <h1>ยินดีต้อนรับกลับ</h1>
+              <p>เข้าสู่ระบบผู้ดูแล เพื่ออนุมัติและจัดการการจองห้องประชุม</p>
             </div>
             <label class="field"
-              ><span>ชื่อผู้ใช้</span>
-              <div class="input-icon">
-                ${icon("user")}<input
-                  class="input"
-                  name="username"
-                  autocomplete="username"
-                  autocapitalize="none"
-                  required
-                /></div
-            ></label>
+              ><span>ชื่อผู้ใช้</span
+              ><input
+                class="input"
+                name="username"
+                autocomplete="username"
+                autocapitalize="none"
+                spellcheck="false"
+                placeholder="เช่น admin"
+                required
+            /></label>
             <label class="field"
               ><span>รหัสผ่าน</span>
-              <div class="input-icon pw-wrap">
-                ${icon("lock")}<input
+              <div class="pw-wrap">
+                <input
                   class="input"
                   name="password"
                   type="password"
                   autocomplete="current-password"
+                  placeholder="รหัสผ่านของคุณ"
                   required
                 />
                 <button
@@ -5816,32 +5904,68 @@
                 </button>
               </div></label
             >
-            <div id="login-err"></div>
-            <button class="btn btn-primary btn-lg btn-block" type="submit">
-              ${icon("log-in")} เข้าสู่ระบบ
-            </button>
-            <div class="login-foot">
-              <a href="/">${icon("arrow-left", "i-sm")} กลับหน้าจองห้อง</a>
-              <span
+            <div class="auth-row">
+              <span class="faint small"
                 >${icon("shield", "i-sm")} ทุกการเข้าสู่ระบบถูกบันทึกไว้</span
               >
+              <button type="button" class="link-btn small" id="forgot">
+                ลืมรหัสผ่าน?
+              </button>
             </div>
-          </form>
-        </div>`,
+            <div id="forgot-tip" hidden>
+              <div class="notice">
+                ${icon("info")}
+                <div>
+                  ขอให้ผู้ดูแลระบบอีกคนตั้งรหัสผ่านชั่วคราวให้ที่เมนู
+                  “ผู้ใช้งานระบบ” หากไม่มีผู้ดูแลคนอื่น ให้ปิดระบบ แล้วรัน
+                  <code>node scripts/reset-admin.js</code> บนเครื่องแม่ข่าย
+                </div>
+              </div>
+            </div>
+            <div id="login-err" aria-live="assertive"></div>
+            <button
+              class="btn btn-primary btn-lg btn-block auth-submit"
+              type="submit"
+            >
+              เข้าสู่ระบบ
+            </button>
+            <p class="auth-foot">
+              <a href="/">${icon("arrow-left", "i-sm")} กลับหน้าจองห้อง</a>
+            </p>
+          </form>`,
+        ),
       );
       const form = $("#login");
       form.username.focus();
+      $("#forgot").onclick = () => {
+        const tip = $("#forgot-tip");
+        tip.hidden = !tip.hidden;
+      };
       $(".pw-eye", form).onclick = (e) => {
         const inp = form.password;
-        inp.type = inp.type === "password" ? "text" : "password";
-        setHTML(
-          e.currentTarget,
-          icon(inp.type === "password" ? "eye" : "eye-off"),
+        const show = inp.type === "password";
+        inp.type = show ? "text" : "password";
+        e.currentTarget.setAttribute(
+          "aria-label",
+          show ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน",
         );
+        setHTML(e.currentTarget, icon(show ? "eye-off" : "eye"));
       };
       form.onsubmit = async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button[type="submit"]');
+        if (!form.username.value.trim() || !form.password.value) {
+          setHTML(
+            $("#login-err"),
+            html`<div class="notice notice-danger">
+              ${icon("alert")}
+              <div>กรอกชื่อผู้ใช้และรหัสผ่านให้ครบ</div>
+            </div>`,
+          );
+          shake(form);
+          (form.username.value.trim() ? form.password : form.username).focus();
+          return;
+        }
         btn.classList.add("is-loading");
         try {
           const res = await api("/api/admin/login", {
@@ -6250,35 +6374,33 @@
       document.title = `ตั้งรหัสผ่านใหม่ · ${s.siteName}`;
       setHTML(
         root,
-        html`<main class="login-wrap">
-          <form class="card login-card" id="first-pw" novalidate>
-            <div class="login-head">
-              <span class="brand-mark"
-                >${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}</span
-              >
-              <div>
-                <h1>ตั้งรหัสผ่านของคุณ</h1>
-                <p>
-                  สวัสดี ${A.me.name} · ตั้งรหัสผ่านใหม่แทนรหัสชั่วคราว
-                  แล้วเริ่มใช้งานได้ทันที
-                </p>
-              </div>
+        authLayout(
+          html`<form id="first-pw" novalidate>
+            ${authBrand()}
+            <div class="auth-head">
+              <h1>ตั้งรหัสผ่านของคุณ</h1>
+              <p>
+                สวัสดี ${A.me.name} · ตั้งรหัสผ่านใหม่แทนรหัสชั่วคราว
+                แล้วเริ่มใช้งานได้ทันที
+              </p>
             </div>
             ${passwordFields()}
-            <button class="btn btn-primary btn-lg btn-block" type="submit">
-              ${icon("check")} บันทึกและเริ่มใช้งาน
+            <button
+              class="btn btn-primary btn-lg btn-block auth-submit"
+              type="submit"
+            >
+              บันทึกและเริ่มใช้งาน
             </button>
-            <div class="login-foot">
-              <button type="button" class="btn btn-ghost btn-sm" id="pw-out">
-                ${icon("log-out", "i-sm")} ออกจากระบบ
+            <div class="auth-row">
+              <button type="button" class="link-btn small" id="pw-out">
+                ออกจากระบบ
               </button>
-              <span
-                >${icon("shield", "i-sm")}
-                รหัสผ่านใหม่จะใช้แทนรหัสชั่วคราวทันที</span
+              <span class="faint small"
+                >${icon("shield", "i-sm")} รหัสใหม่ใช้แทนรหัสชั่วคราวทันที</span
               >
             </div>
-          </form>
-        </main>`,
+          </form>`,
+        ),
       );
       const form = $("#first-pw");
       form.current.focus();
@@ -10535,7 +10657,11 @@
                   alt=""
                   style="width:30mm;height:30mm;object-fit:contain;margin:0 auto 6mm;display:block"
                 />`
-              : ""}
+              : html`<img
+                  src="brand/logo-bangrak.svg"
+                  alt="สำนักงานเขตบางรัก"
+                  style="width:120mm;height:auto;margin:0 auto 8mm;display:block"
+                />`}
             <h1>${s.siteName}</h1>
             <h2>${s.orgName}</h2>
             <div class="qr">${raw(qrSVG(`${base}/`, { ecc: "Q" }))}</div>
@@ -10615,9 +10741,7 @@
     let loadedDate = "";
     let first = true;
 
-    const EMBLEM = raw(
-      '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="7" width="22" height="20" rx="4.5"/><path d="M5 13h22M11 4v5M21 4v5"/><path d="m11.5 19.5 3 3 6-6"/></svg>',
-    );
+    const EMBLEM = raw('<span class="seal" aria-hidden="true"></span>');
     const col = (r) =>
       r && /^#[0-9a-f]{6}$/i.test(r.color) ? r.color : "#0284c7";
     const ST_COLOR = {

@@ -222,7 +222,8 @@ public/admin-backup.html     ผู้ดูแล: สำรอง/กู้ค
 public/admin-connect.html    ผู้ดูแล: การเชื่อมต่อและ QR
 public/css.css               สไตล์ทั้งหมดของทุกหน้า
 public/js.js                 สคริปต์ทั้งหมดของทุกหน้า (เลือกส่วนที่ทำงานจาก <body data-app data-page>)
-public/icon.svg              ไอคอนเว็บ (SVG)
+public/icon.svg              ไอคอนเว็บ (ตราสำนักงานเขต SVG)
+public/brand/                ตราสำนักงานเขตบางรัก (seal.svg) และโลโก้เต็ม (logo-bangrak.svg) แบบเวกเตอร์
 public/fonts/                ฟอนต์ Anuphan (SIL OFL)
 test/                ชุดทดสอบ API
 ```
