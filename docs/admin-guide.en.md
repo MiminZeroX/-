@@ -286,23 +286,27 @@ The server runs **HTTP** by default; its console shows `http://...` with a note 
 | --------------------------------------- | ----------------------------------------------------------------- | :-------------------------------------: |
 | Cloud VM + domain name                  | `deploy/install-vm.sh` (Caddy + Let's Encrypt, automatic)         |                   Yes                   |
 | Office server with an organisation cert | `node server.js --port=443 --tls-cert=cert.pem --tls-key=key.pem` |       Yes (if the CA is trusted)        |
-| Office server, no certificate           | mkcert (below)                                                    | No — install the root CA on each device |
+| Office server, no certificate           | `./start.sh --https` / `start-windows.bat --https` (below)        | No — install the root CA on each device |
 
-### Using mkcert (office server, or testing on a Mac/PC)
+### One-command HTTPS (office server, or testing on a Mac/PC)
+
+Install mkcert once, then start the system with `--https`.
 
 ```bash
-# macOS (Homebrew)  ·  Windows: choco install mkcert  or  winget install FiloSottile.mkcert
-brew install mkcert
-mkcert -install                                   # trust the local CA on this machine
-mkdir -p data
-mkcert -cert-file data/cert.pem -key-file data/key.pem <server IP> localhost
-node server.js --port=443 --tls-cert=data/cert.pem --tls-key=data/key.pem
+# macOS:   brew install mkcert
+# Windows: winget install FiloSottile.mkcert   (or choco install mkcert)
+# Ubuntu:  sudo apt install mkcert libnss3-tools
+./start.sh --https            # macOS/Linux
+start-windows.bat --https     # Windows (a shortcut with --https appended works too)
 ```
 
-- Open `https://<server IP>` (port 443 needs no port number in the address).
-- Other devices (staff phones/PCs) must install `rootCA.pem` from the folder printed by `mkcert -CAROOT` to avoid warnings.
+- A certificate is created automatically in `data/certs/`, covering `localhost`, the machine name and every IP of the machine — **regenerated automatically when the IP changes**.
+- The first `mkcert -install` may ask for the computer's password so this machine trusts the certificate.
+- Port: macOS/Windows use 443 (open `https://<server IP>` with no port number) · Linux as non-root uses 3443 · override with `--port=`.
+- Other devices (staff phones/PCs) must install `rootCA.pem` (its location is printed when the certificate is created, or run `mkcert -CAROOT`) to avoid warnings.
 - The certificate files live in `data/`, which is not tracked by git — **never share `rootCA-key.pem`**.
 - With HTTPS enabled, the sign-in cookie is marked `Secure`.
+- Adding `--https` to `node server.js` directly has no effect (the server warns about an unknown option) — use `start.sh` / `start-windows.bat`.
 
 ---
 
@@ -381,7 +385,7 @@ The system has been penetration-tested and reviewed against the OWASP Top 10 (de
 | IP changed, QR codes broken                       | Fixed IP or DHCP reservation on the router                                                                                                                                                                                                                                    |
 | "Port already in use"                             | Another program or a second copy is running — use `--port=3001` or stop the other copy                                                                                                                                                                                        |
 | 421 / "host name not allowed"                     | Opened via an unlisted host name — add it with `--allowed-hosts=` (or `--public-url=` in the cloud)                                                                                                                                                                           |
-| Still `http://`                                   | HTTPS not enabled — see section 13                                                                                                                                                                                                                                            |
+| Still `http://`                                   | HTTPS not enabled — start with `./start.sh --https` (section 13)                                                                                                                                                                                                              |
 | All administrators forgot their passwords         | Stop the server → `node scripts/reset-admin.js` (cloud: `sudo systemctl stop bangrak-booking && sudo -u bangrak node /opt/bangrak-booking/scripts/reset-admin.js --data=/var/lib/bangrak-booking && sudo systemctl start bangrak-booking`) → use the temporary password shown |
 | The whole office is locked out at once (cloud)    | `OFFICE_IPS` not set, or the proxy does not pass the real IP — see deploy/README.md step 4                                                                                                                                                                                    |
 | Administrators are signed out often               | The device's IP changes (mobile data) — by design, sign in again                                                                                                                                                                                                              |

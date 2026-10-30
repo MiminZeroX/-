@@ -2,6 +2,7 @@
 chcp 65001 >nul
 title ระบบจองห้องประชุม - สำนักงานเขตบางรัก
 cd /d "%~dp0"
+rem เปิดแบบ HTTPS:  start-windows.bat --https   (สร้างใบรับรองด้วย mkcert ให้อัตโนมัติ)
 
 where node >nul 2>nul
 if errorlevel 1 (
@@ -15,9 +16,25 @@ if errorlevel 1 (
   exit /b 1
 )
 
-:loop
-node server.js %*
+set "ARGS=%*"
+set "HTTPS="
+if not defined ARGS goto run
+echo %ARGS% | findstr /i /c:"--https" >nul && set "HTTPS=1"
+set "ARGS=%ARGS:--https=%"
+if not defined HTTPS goto run
+
+set "CERTDIR="
+for /f "usebackq delims=" %%d in (`node scripts\https-cert.js %ARGS%`) do set "CERTDIR=%%d"
+if not defined CERTDIR (
+  pause
+  exit /b 1
+)
+echo %ARGS% | findstr /i /c:"--port=" >nul || set "ARGS=%ARGS% --port=443"
+set ARGS=%ARGS% "--tls-cert=%CERTDIR%\cert.pem" "--tls-key=%CERTDIR%\key.pem"
+
+:run
+node server.js %ARGS%
 echo.
 echo   ระบบหยุดทำงาน - จะเริ่มใหม่อัตโนมัติใน 5 วินาที (ปิดหน้าต่างนี้เพื่อหยุดถาวร)
 timeout /t 5 >nul
-goto loop
+goto run

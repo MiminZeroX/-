@@ -284,23 +284,27 @@ sudo bash deploy/install-vm.sh --domain=booking.example.go.th --office-ips=<IP �
 | -------------------------------- | ----------------------------------------------------------------- | :----------------------------------: |
 | เครื่องคลาวด์ + ชื่อโดเมน        | `deploy/install-vm.sh` (Caddy + Let's Encrypt อัตโนมัติ)          |                 ใช่                  |
 | ในสำนักงาน มีใบรับรองของหน่วยงาน | `node server.js --port=443 --tls-cert=cert.pem --tls-key=key.pem` |     ใช่ (ถ้า CA เป็นที่เชื่อถือ)     |
-| ในสำนักงาน ไม่มีใบรับรอง         | ใช้ mkcert (ด้านล่าง)                                             | ไม่ — ต้องติดตั้ง root CA ทุกเครื่อง |
+| ในสำนักงาน ไม่มีใบรับรอง         | `./start.sh --https` / `start-windows.bat --https` (ด้านล่าง)     | ไม่ — ต้องติดตั้ง root CA ทุกเครื่อง |
 
-### ใช้ mkcert (เครื่องในสำนักงาน/ทดสอบบน Mac หรือ PC)
+### เปิด HTTPS ด้วยคำสั่งเดียว (เครื่องในสำนักงาน หรือทดสอบบน Mac/PC)
+
+ติดตั้ง mkcert ครั้งแรกครั้งเดียว แล้วเปิดระบบด้วย `--https`
 
 ```bash
-# macOS (Homebrew)  ·  Windows: choco install mkcert  หรือ  winget install FiloSottile.mkcert
-brew install mkcert
-mkcert -install                                   # ให้เครื่องนี้เชื่อถือใบรับรอง
-mkdir -p data
-mkcert -cert-file data/cert.pem -key-file data/key.pem <IP เครื่องแม่ข่าย> localhost
-node server.js --port=443 --tls-cert=data/cert.pem --tls-key=data/key.pem
+# macOS:   brew install mkcert
+# Windows: winget install FiloSottile.mkcert   (หรือ choco install mkcert)
+# Ubuntu:  sudo apt install mkcert libnss3-tools
+./start.sh --https            # macOS/Linux
+start-windows.bat --https     # Windows (สร้าง shortcut ที่ใส่ --https ต่อท้ายไว้ได้)
 ```
 
-- เปิดด้วย `https://<IP เครื่องแม่ข่าย>` (พอร์ต 443 ไม่ต้องพิมพ์เลขพอร์ต)
-- เครื่องอื่น (มือถือ/คอมของเจ้าหน้าที่) ต้องติดตั้งไฟล์ `rootCA.pem` จากโฟลเดอร์ที่ได้จาก `mkcert -CAROOT` จึงจะไม่ขึ้นคำเตือน
+- ระบบสร้างใบรับรองใน `data/certs/` ให้อัตโนมัติ ครอบคลุม `localhost` ชื่อเครื่อง และ IP ทุกวงของเครื่อง — **สร้างใหม่เองเมื่อ IP เปลี่ยน**
+- ครั้งแรก `mkcert -install` อาจถามรหัสผ่านเครื่อง เพื่อให้เครื่องนี้เชื่อถือใบรับรอง
+- พอร์ต: macOS/Windows ใช้ 443 (เปิดด้วย `https://<IP เครื่องแม่ข่าย>` ไม่ต้องพิมพ์เลขพอร์ต) · Linux ที่ไม่ใช่ root ใช้ 3443 · กำหนดเองได้ด้วย `--port=`
+- เครื่องอื่น (มือถือ/คอมของเจ้าหน้าที่) ต้องติดตั้งไฟล์ `rootCA.pem` (ตำแหน่งแสดงบนหน้าต่างระบบตอนสร้างใบรับรอง หรือดูด้วย `mkcert -CAROOT`) จึงจะไม่ขึ้นคำเตือน
 - ไฟล์ใบรับรองอยู่ใน `data/` ซึ่งไม่ถูกเก็บใน git — **ห้ามส่งต่อ `rootCA-key.pem`**
 - เมื่อเปิด HTTPS คุกกี้เข้าสู่ระบบจะถูกตั้งเป็น `Secure`
+- พิมพ์ `--https` ต่อท้าย `node server.js` โดยตรงจะไม่มีผล (ระบบจะแจ้งว่าไม่รู้จักตัวเลือก) — ต้องใช้ผ่าน `start.sh` / `start-windows.bat`
 
 ---
 
@@ -379,7 +383,7 @@ node server.js --port=443 --tls-cert=data/cert.pem --tls-key=data/key.pem
 | IP เปลี่ยน QR ใช้ไม่ได้                               | ตั้ง IP คงที่ หรือ DHCP reservation ที่เราเตอร์                                                                                                                                                                                                              |
 | “พอร์ตถูกใช้งานอยู่แล้ว”                              | มีโปรแกรมอื่นใช้พอร์ต หรือระบบเปิดซ้อน — ใช้ `--port=3001` หรือปิดตัวที่เปิดอยู่                                                                                                                                                                             |
 | ขึ้น 421 / “ชื่อโฮสต์นี้ไม่ได้รับอนุญาต”              | เปิดผ่านชื่อโดเมนที่ไม่ได้อนุญาต — เพิ่มด้วย `--allowed-hosts=` (หรือ `--public-url=` บนคลาวด์)                                                                                                                                                              |
-| ยังเป็น `http://`                                     | ยังไม่ได้เปิด HTTPS — ดูหัวข้อ 13                                                                                                                                                                                                                            |
+| ยังเป็น `http://`                                     | ยังไม่ได้เปิด HTTPS — เปิดระบบด้วย `./start.sh --https` (หัวข้อ 13)                                                                                                                                                                                          |
 | ลืมรหัสผ่านผู้ดูแลทุกคน                               | ปิดระบบ → `node scripts/reset-admin.js` (คลาวด์: `sudo systemctl stop bangrak-booking && sudo -u bangrak node /opt/bangrak-booking/scripts/reset-admin.js --data=/var/lib/bangrak-booking && sudo systemctl start bangrak-booking`) → ใช้รหัสชั่วคราวที่แสดง |
 | ทั้งสำนักงานถูกพักการเข้าสู่ระบบ/จองพร้อมกัน (คลาวด์) | ยังไม่ได้ตั้ง `OFFICE_IPS` หรือ proxy ไม่ได้ส่ง IP จริง — ดู deploy/README.md ขั้นที่ 4                                                                                                                                                                      |
 | ผู้ดูแลหลุดออกจากระบบบ่อย                             | เครือข่ายของเครื่องเปลี่ยน IP (มือถือ 4G/5G) — ระบบตั้งใจให้เข้าใหม่เพื่อความปลอดภัย                                                                                                                                                                         |

@@ -33,6 +33,29 @@ function arg(name, fallback) {
   return hit ? hit.slice(name.length + 3) : fallback;
 }
 
+// ตัวเลือกที่ไม่รู้จักจะถูกข้ามไป — แจ้งไว้ ไม่ให้เข้าใจผิดว่าเปิดใช้แล้ว
+const KNOWN_OPTIONS = [
+  "port",
+  "host",
+  "data",
+  "allowed-hosts",
+  "tls-cert",
+  "tls-key",
+  "public-url",
+  "trust-proxy",
+  "office-ips",
+];
+for (const a of process.argv.slice(2)) {
+  const name = (/^--([^=]+)/.exec(a) || [])[1];
+  if (!KNOWN_OPTIONS.includes(name))
+    console.warn(
+      `\n  ไม่รู้จักตัวเลือก "${a}" — ข้ามไป` +
+        (name === "https"
+          ? "\n  เปิด HTTPS ด้วย  ./start.sh --https  (macOS/Linux) หรือ  start-windows.bat --https  (Windows)"
+          : ""),
+    );
+}
+
 const port = Number(arg("port", process.env.PORT || 3000));
 const host = arg("host", process.env.HOST || "0.0.0.0");
 const dataDir = path.resolve(

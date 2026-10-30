@@ -132,13 +132,16 @@ node server.js --tls-cert=cert.pem --tls-key=key.pem   # เปิด HTTPS
 
 ### เปิดใช้ HTTPS (แนะนำเมื่อ Wi-Fi ใช้ร่วมกับผู้มาติดต่อ)
 
-HTTP ธรรมดาอาจถูกดักอ่านรหัสผ่านผู้ดูแลได้บนเครือข่ายที่ใช้ร่วมกัน วิธีที่ง่ายที่สุดคือใช้ [mkcert](https://github.com/FiloSottile/mkcert)
-สร้างใบรับรองสำหรับ IP ของเครื่องแม่ข่าย แล้วติดตั้งใบรับรองหลัก (root CA) ให้เครื่องของเจ้าหน้าที่ หรือใช้ใบรับรองจากหน่วยงานด้านไอทีของ กทม.
+HTTP ธรรมดาอาจถูกดักอ่านรหัสผ่านผู้ดูแลได้บนเครือข่ายที่ใช้ร่วมกัน วิธีที่ง่ายที่สุดคือเปิดระบบด้วย `--https`
+ระบบจะสร้างใบรับรองด้วย [mkcert](https://github.com/FiloSottile/mkcert) ให้อัตโนมัติ (ครอบคลุม localhost ชื่อเครื่อง และ IP ทุกวง สร้างใหม่เองเมื่อ IP เปลี่ยน)
 
 ```bash
-mkcert 192.168.1.25 localhost       # ได้ไฟล์ 192.168.1.25+1.pem และ 192.168.1.25+1-key.pem
-node server.js --port=443 --tls-cert=192.168.1.25+1.pem --tls-key=192.168.1.25+1-key.pem
+brew install mkcert                 # macOS ครั้งแรกครั้งเดียว · Windows: winget install FiloSottile.mkcert · Ubuntu: sudo apt install mkcert libnss3-tools
+./start.sh --https                  # macOS/Linux — Windows: start-windows.bat --https
 ```
+
+เปิดด้วย `https://<IP เครื่องแม่ข่าย>` (macOS/Windows ใช้พอร์ต 443 จึงไม่ต้องพิมพ์เลขพอร์ต; Linux ที่ไม่ใช่ root ใช้พอร์ต 3443)
+เครื่องอื่นต้องติดตั้งใบรับรองหลัก `rootCA.pem` (ตำแหน่งแสดงตอนสร้างใบรับรอง) จึงจะไม่ขึ้นคำเตือน — หรือใช้ใบรับรองจากหน่วยงานด้านไอทีของ กทม. ด้วย `--tls-cert=` และ `--tls-key=`
 
 เมื่อเปิด HTTPS คุกกี้เข้าสู่ระบบจะถูกส่งเฉพาะผ่านการเชื่อมต่อที่เข้ารหัสเท่านั้น (Secure)
 
