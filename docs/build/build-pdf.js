@@ -3,8 +3,7 @@
 
 // สร้างคู่มือฉบับ PDF (A4) จากไฟล์ Markdown ใน docs/ — ปก สารบัญพร้อมเลขหน้า หน้าคั่นส่วน และคำบรรยายภาพ
 // ต้องมี: pandoc, pdftotext (poppler-utils) และ Playwright + Chromium
-// ใช้:  node docs/build/build-pdf.js            (สร้างทั้ง 4 ฉบับลง docs/pdf/)
-//       node docs/build/build-pdf.js user-guide.th
+// ใช้:  node docs/build/build-pdf.js            (สร้าง docs/pdf/manual.pdf จาก docs/manual.md)
 
 const { execFileSync } = require("child_process");
 const fs = require("fs");
@@ -15,61 +14,29 @@ const { chromium } = require("playwright");
 const DOCS_DIR = path.resolve(__dirname, "..");
 const OUT_DIR = path.join(DOCS_DIR, "pdf");
 
+// ข้อความประจำเล่ม (คู่มือเล่มเดียวสองภาษา: ไทยครึ่งแรก อังกฤษครึ่งหลัง)
 const LANG = {
-  th: {
-    org: "สำนักงานเขตบางรัก · กรุงเทพมหานคร",
-    sys: "ระบบจองห้องประชุม",
-    chips: ["ห้องประชุมเล็ก ชั้น 2", "ห้องประชุมใหญ่ ชั้น 4"],
-    ver: "ฉบับที่ 1.0 · ตุลาคม 2569",
-    toc: "สารบัญ",
-    about: "เกี่ยวกับคู่มือนี้",
-    fig: "ภาพที่",
-    page: "หน้า",
-    part: "ส่วน",
-  },
-  en: {
-    org: "Bang Rak District Office · Bangkok",
-    sys: "Meeting Room Booking System",
-    chips: ["Small Meeting Room · 2nd floor", "Large Meeting Room · 4th floor"],
-    ver: "Version 1.0 · October 2026",
-    toc: "Contents",
-    about: "About this guide",
-    fig: "Figure",
-    page: "Page",
-    part: "Part",
-  },
+  org: "สำนักงานเขตบางรัก · Bang Rak District Office",
+  sys: "ระบบจองห้องประชุม · Meeting Room Booking System",
+  chips: [
+    "ห้องประชุมเล็ก ชั้น 2 · Small Room 2F",
+    "ห้องประชุมใหญ่ ชั้น 4 · Large Room 4F",
+  ],
+  ver: "ฉบับที่ 2.0 · ตุลาคม 2569 · Version 2.0 · October 2026",
+  toc: "สารบัญ · Contents",
+  about: "เกี่ยวกับคู่มือนี้ · About this manual",
+  fig: { th: "ภาพที่", en: "Figure" },
+  page: "หน้า · Page",
 };
 
 const DOCS = {
-  "user-guide.th": {
+  manual: {
     shot: "images/u-home.jpg",
-    kicker: "คู่มือการใช้งาน",
-    title: "สำหรับเจ้าหน้าที่",
-    sub: "ดูตารางห้อง · จองห้อง · จัดการการจองของตนเอง",
-    footer: "คู่มือเจ้าหน้าที่ · ระบบจองห้องประชุม สำนักงานเขตบางรัก",
-  },
-  "user-guide.en": {
-    shot: "images/u-home.jpg",
-    kicker: "User Guide",
-    title: "For Staff",
-    sub: "View schedules · Book rooms · Manage your bookings",
+    kicker: "คู่มือฉบับสมบูรณ์ · Complete Manual",
+    title: "ระบบจองห้องประชุม<br><small>Meeting Room Booking System</small>",
+    sub: "ผู้ใช้ · ผู้ดูแล · GitHub · Cloudflare · สร้างใหม่ · ส่งมอบ · ความปลอดภัย — Users · Admins · GitHub · Cloudflare · Setup · Handover · Security",
     footer:
-      "Staff User Guide · Meeting Room Booking System, Bang Rak District Office",
-  },
-  "admin-guide.th": {
-    shot: "images/a-dash.jpg",
-    kicker: "คู่มือและเอกสารส่งมอบ",
-    title: "ผู้ดูแลระบบ<br>และฝ่าย IT",
-    sub: "การใช้หน้าผู้ดูแล · การติดตั้ง · HTTPS · ความปลอดภัย · การสำรองข้อมูล",
-    footer: "คู่มือผู้ดูแลระบบและฝ่าย IT · ระบบจองห้องประชุม สำนักงานเขตบางรัก",
-  },
-  "admin-guide.en": {
-    shot: "images/a-dash.jpg",
-    kicker: "Handover Guide",
-    title: "Administrators<br>&amp; IT",
-    sub: "Admin pages · Deployment · HTTPS · Security · Backups",
-    footer:
-      "Administrator & IT Guide · Meeting Room Booking System, Bang Rak District Office",
+      "คู่มือระบบจองห้องประชุม สำนักงานเขตบางรัก · Meeting Room Booking System Manual",
   },
 };
 
@@ -78,7 +45,7 @@ function transform({ doc, L, pages, markers }) {
   const src = document.getElementById("src");
   const nodes = [...src.children];
   const isToc = (n) =>
-    n.tagName === "H2" && /^(สารบัญ|Contents)$/.test(n.textContent.trim());
+    n.tagName === "H2" && /^(สารบัญ|Contents)/.test(n.textContent.trim());
   const tocIdx = nodes.findIndex(isToc);
   const intro = nodes
     .slice(1, tocIdx)
@@ -150,7 +117,10 @@ function transform({ doc, L, pages, markers }) {
       div.querySelector("ol").appendChild(li);
     });
     h.replaceWith(div);
-    entries.push({ el: h1, n: letter, t: title, part: true });
+    // กลุ่มภาษา: ข้อความก่อน " · " ของป้ายส่วน เช่น "ภาษาไทย" / "English"
+    const group = lbl.includes(" · ") ? lbl.split(" · ")[0].trim() : "";
+    div.dataset.lang = /^English/.test(group) ? "en" : "th";
+    entries.push({ el: h1, n: letter, t: title, part: true, group });
   });
   entries.sort((a, b) =>
     a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -160,7 +130,19 @@ function transform({ doc, L, pages, markers }) {
 
   // ภาพ: ย่อหน้าที่มีแต่รูป -> figure พร้อมคำบรรยาย
   let figNo = 0;
+  let figLang = "th";
+  const enStart = content.querySelector('.part-page[data-lang="en"]');
   content.querySelectorAll("p").forEach((p) => {
+    // เลขภาพเริ่มใหม่ในครึ่งภาษาอังกฤษ
+    const lang =
+      enStart &&
+      enStart.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING
+        ? "en"
+        : "th";
+    if (lang !== figLang) {
+      figLang = lang;
+      figNo = 0;
+    }
     const imgs = [...p.querySelectorAll("img")];
     if (!imgs.length || p.textContent.trim()) return;
     const fig = document.createElement("figure");
@@ -175,7 +157,7 @@ function transform({ doc, L, pages, markers }) {
     const cap = document.createElement("figcaption");
     const first = ++figNo;
     if (imgs.length > 1) figNo += imgs.length - 1;
-    cap.innerHTML = `<b>${L.fig} ${first === figNo ? first : `${first}–${figNo}`}</b><span></span>`;
+    cap.innerHTML = `<b>${L.fig[lang]} ${first === figNo ? first : `${first}–${figNo}`}</b><span></span>`;
     cap.lastChild.textContent = imgs.map((i) => i.alt).join(" · ");
     fig.appendChild(cap);
     p.replaceWith(fig);
@@ -224,7 +206,16 @@ function transform({ doc, L, pages, markers }) {
   toc.querySelector(".toc-h").textContent = L.toc;
   toc.querySelector(".about h3").textContent = L.about;
   intro.forEach((n) => toc.querySelector(".about").appendChild(n));
+  let group = null;
   entries.forEach((e, i) => {
+    // หัวหมวดภาษาในสารบัญ
+    if (e.part && e.group && e.group !== group) {
+      group = e.group;
+      const gh = document.createElement("li");
+      gh.className = "lang";
+      gh.textContent = group;
+      toc.querySelector(".toc").appendChild(gh);
+    }
     const li = document.createElement("li");
     if (e.part) li.className = "part";
     li.innerHTML = `<a href="#${e.el.id}"><span class="n"></span><span class="t"></span><span class="p"></span></a>`;
@@ -267,7 +258,7 @@ async function render(page, name, html, opts) {
 
 async function build(browser, name) {
   const doc = DOCS[name];
-  const L = LANG[name.split(".").pop()];
+  const L = LANG;
   const fragment = execFileSync(
     "pandoc",
     [
@@ -282,9 +273,9 @@ async function build(browser, name) {
   const htmlFile = path.join(__dirname, `.${name}.html`);
   fs.writeFileSync(
     htmlFile,
-    `<!doctype html><html lang="${name.split(".").pop()}"><head><meta charset="utf-8">
+    `<!doctype html><html lang="th"><head><meta charset="utf-8">
 <base href="file://${DOCS_DIR}/"><link rel="stylesheet" href="build/manual.css">
-<style>@page{@bottom-left{content:${JSON.stringify(doc.footer)}}@bottom-right{content:${JSON.stringify(`${L.page} `)} counter(page) " / " counter(pages)}@top-right{content:${JSON.stringify(L.sys + " · " + L.org)}}}</style></head>
+<style>@page{@bottom-left{content:${JSON.stringify(doc.footer)}}@bottom-right{content:${JSON.stringify(`${L.page} `)} counter(page) " / " counter(pages)}@top-right{content:${JSON.stringify(L.org)}}}</style></head>
 <body><div id="src">${fragment}</div></body></html>`,
   );
   const html = `file://${htmlFile}`;

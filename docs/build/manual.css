@@ -653,3 +653,27 @@ ul.task-list li::before,
   font-size: 1px;
   color: transparent;
 }
+
+/* ---------- คู่มือสองภาษา: หัวหมวดภาษาในสารบัญ และชื่อรองบนปก ---------- */
+.toc li.lang {
+  margin: 6mm 0 1mm;
+  padding: 2mm 3mm;
+  background: var(--navy);
+  color: #fff;
+  border-radius: 2mm;
+  font-weight: 800;
+  font-size: 11pt;
+  letter-spacing: 0.3pt;
+  break-after: avoid;
+}
+.toc li.lang:first-child {
+  margin-top: 0;
+}
+.cover h1.ct small {
+  display: block;
+  font-size: 19pt;
+  font-weight: 700;
+  color: var(--blue);
+  margin-top: 2mm;
+  letter-spacing: 0;
+}

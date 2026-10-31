@@ -9,7 +9,7 @@
 - ไม่ต้องติดตั้งฐานข้อมูลหรือแพ็กเกจเพิ่ม — ต้องการแค่ **Node.js** (รุ่น 18 ขึ้นไป)
 - ข้อมูลเก็บเป็นไฟล์ในโฟลเดอร์ `data/` และสำรองอัตโนมัติทุกวัน
 
-**คู่มือ / Manuals** — [คู่มือเจ้าหน้าที่](docs/user-guide.th.md) · [Staff guide](docs/user-guide.en.md) · [คู่มือผู้ดูแลระบบและฝ่าย IT](docs/admin-guide.th.md) · [Administrator & IT guide](docs/admin-guide.en.md) · ฉบับพิมพ์ PDF อยู่ใน [docs/pdf/](docs/pdf/)
+**คู่มือ / Manual** — [คู่มือฉบับสมบูรณ์ ไทย/English (PDF)](docs/pdf/manual.pdf) · ต้นฉบับ [docs/manual.md](docs/manual.md) — การใช้งานเว็บ (ผู้ใช้/ผู้ดูแล) GitHub Cloudflare การสร้างใหม่ การส่งมอบ และความปลอดภัย
 
 ---
 
