@@ -139,7 +139,7 @@ function resetAdminOnce(store, password) {
   });
 }
 
-export class BookingApp extends DurableObject {
+class BookingApp extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.app = null;
@@ -194,5 +194,7 @@ export class BookingApp extends DurableObject {
   }
 }
 
-// คลาสเดิมของลิงก์ส่งต่อไป Quick Tunnel (เลิกใช้แล้ว) — คงไว้ให้ migration เดิมของ Durable Object ถูกต้อง
-export class TunnelTarget extends DurableObject {}
+// ใช้ชื่อคลาสเดิม "TunnelTarget" (ลิงก์ส่งต่อไป Quick Tunnel ที่เลิกใช้แล้ว) ซึ่งมีอยู่บน Cloudflare แล้ว
+// เพราะการเพิ่มคลาส Durable Object ใหม่ต้องมี migration ซึ่ง build ของ PR (wrangler versions upload) ทำไม่ได้
+// ข้อมูลเดิมในคลาสนี้มีแค่ที่อยู่ tunnel (เก็บแยกจากตารางของระบบจอง) จึงไม่กระทบกัน
+export { BookingApp as TunnelTarget };

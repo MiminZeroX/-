@@ -184,16 +184,15 @@ export class CloudStore extends Store {
     };
   }
 
-  // ไม่มีหน้าต่างเซิร์ฟเวอร์ให้ดู: แสดงในบันทึกของ Worker (Cloudflare dashboard › Workers › Logs)
-  // แนะนำให้ตั้ง Secret ADMIN_INITIAL_PASSWORD ไว้ก่อนเปิดใช้ครั้งแรกแทน
-  writeInitialPassword(username, password) {
-    this.putBlob("initial-password", `${username}\n${password}`);
+  // บน Cloudflare ไม่มีหน้าต่างเซิร์ฟเวอร์ และบันทึกของ Worker ไม่ใช่ที่ปลอดภัยสำหรับรหัสผ่าน
+  // จึงไม่เก็บ/ไม่แสดงรหัสที่สุ่มได้ (บัญชี admin ใช้ไม่ได้จนกว่าจะตั้ง Secret) — แจ้งเพียงวิธีตั้งรหัส
+  writeInitialPassword(username) {
     console.log(
-      `[setup] บัญชีผู้ดูแลเริ่มต้น  ชื่อผู้ใช้: ${username}  รหัสผ่าน: ${password}  (ระบบจะให้ตั้งรหัสใหม่เมื่อเข้าครั้งแรก)`,
+      `[setup] ยังไม่ได้ตั้งรหัสผ่านของบัญชี ${username} — ตั้ง Secret ADMIN_RESET_PASSWORD ใน Cloudflare dashboard แล้วเปิดเว็บอีกครั้ง`,
     );
   }
 
-  clearInitialPassword(username) {
-    if (username === "admin") this.deleteBlob("initial-password");
+  clearInitialPassword() {
+    /* ไม่ได้เก็บรหัสผ่านเริ่มต้นไว้ */
   }
 }

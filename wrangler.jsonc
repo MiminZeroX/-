@@ -15,11 +15,9 @@
     "not_found_handling": "none",
   },
   "durable_objects": {
-    "bindings": [{ "name": "APP", "class_name": "BookingApp" }],
+    // ระบบจองใช้คลาสชื่อเดิม TunnelTarget ซึ่งมีบน Cloudflare แล้ว (ไม่ต้องมี migration ใหม่ — ดู worker/index.js)
+    "bindings": [{ "name": "APP", "class_name": "TunnelTarget" }],
   },
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["TunnelTarget"] },
-    { "tag": "v2", "new_sqlite_classes": ["BookingApp"] },
-  ],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TunnelTarget"] }],
   "observability": { "enabled": true },
 }
