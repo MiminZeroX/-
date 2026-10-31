@@ -2244,8 +2244,13 @@
       const now = bkkNow();
       setHTML(
         el,
+            // <span class="hero-seal" aria-hidden="true">${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}</span>
+            // <p class="eyebrow">${s.orgName}</p>
         html`<section class="hero">
-            <h1>จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะ</span></h1>
+
+            <h1>
+              จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะ</span>
+            </h1>
             <p class="hero-sub">
               ดูห้องว่างแบบเรียลไทม์ แล้วจองได้ทันที จากคอมพิวเตอร์ แท็บเล็ต
               หรือมือถือ
