@@ -2245,9 +2245,10 @@
       setHTML(
         el,
         // ${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}
+        //${s.orgName}
         html`<section class="hero">
             <span class="hero-seal" aria-hidden="true"></span>
-            <p class="eyebrow">${s.orgName}</p>
+            <p class="eyebrow"></p>
             <h1>
               จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะ</span>
             </h1>
