@@ -1909,8 +1909,9 @@ table.table {
   .top-actions {
     margin-left: 0;
   }
+  /* นาฬิกามุมบนขวาซ่อนไว้ (นาฬิกากลางหน้าแรกเป็นคนละตัว ไม่กระทบ) — แสดงอีกครั้ง: เปลี่ยนเป็น inline-block */
   .clock-chip {
-    display: inline-block;
+    display: none;
   }
 }
 
