@@ -2248,9 +2248,7 @@
         html`<section class="hero">
             <span class="hero-seal" aria-hidden="true"></span>
             <p class="eyebrow">${s.orgName}</p>
-            <h1>
-              จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะ</span>
-            </h1>
+            <h1>จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะ</span></h1>
             <p class="hero-sub">
               ดูห้องว่างแบบเรียลไทม์ แล้วจองได้ทันที จากคอมพิวเตอร์ แท็บเล็ต
               หรือมือถือ
@@ -10015,6 +10013,7 @@
       "system.start": "เริ่มระบบ",
       "system.backup": "สำรองข้อมูล",
       "system.restore": "กู้คืนข้อมูล",
+      "system.purge": "ล้างข้อมูลการจอง",
       "system.error": "ข้อผิดพลาดของระบบ",
       "logs.clear": "ลบบันทึกกิจกรรม",
       "export.csv": "ส่งออก CSV",
@@ -10414,6 +10413,25 @@
             </section>
             <section class="card panel span-2">
               <div class="panel-head">
+                <h3>${icon("trash")} ล้างข้อมูลการจอง</h3>
+              </div>
+              <p class="muted small">
+                ลบการจองเก่าที่ไม่ต้องเก็บแล้ว (ลดข้อมูลส่วนบุคคลตาม PDPA)
+                หรือลบการจองทดสอบทั้งหมดก่อนเปิดใช้จริง — ห้อง การตั้งค่า ผู้ใช้
+                และบันทึกกิจกรรมไม่ถูกลบ
+                ระบบสำรองข้อมูลเดิมไว้ในรายการไฟล์สำรองอัตโนมัติก่อนลบทุกครั้ง
+              </p>
+              <div class="row">
+                <button class="btn btn-ghost" id="bk-purge-old">
+                  ${icon("history")} ลบการจองเก่า
+                </button>
+                <button class="btn btn-danger" id="bk-purge-all">
+                  ${icon("trash")} ล้างการจองทั้งหมด
+                </button>
+              </div>
+            </section>
+            <section class="card panel span-2">
+              <div class="panel-head">
                 <h3>${icon("history")} ไฟล์สำรองอัตโนมัติ</h3>
                 <span class="spacer"></span
                 ><small>เก็บไว้ ${A.settings.backupKeepDays} วัน</small>
@@ -10565,6 +10583,105 @@
         drop.classList.remove("over");
         handle(e.dataTransfer.files[0]);
       });
+      $("#bk-purge-old", el).onclick = () =>
+        purgeDialog("before", sys?.counts?.bookings);
+      $("#bk-purge-all", el).onclick = () =>
+        purgeDialog("all", sys?.counts?.bookings);
+    }
+
+    // ล้างข้อมูลการจอง: ยืนยันรหัสผ่านทุกครั้ง และ "ทั้งหมด" ต้องพิมพ์คำยืนยัน
+    function purgeDialog(scope, total) {
+      const all = scope === "all";
+      const today = bkkNow().date;
+      const body = document.createElement("div");
+      body.className = "stack";
+      setHTML(
+        body,
+        html`<div class="notice notice-warning">
+            ${icon("alert")}
+            <div>
+              ${all
+                ? "การจองทุกรายการจะถูกลบ รวมถึงการจองที่ยังไม่ถึงวัน ใช้เมื่อต้องการล้างข้อมูลทดสอบก่อนเปิดใช้จริง"
+                : "การจองที่วันประชุมอยู่ก่อนวันที่เลือกจะถูกลบ การจองตั้งแต่วันที่เลือกเป็นต้นไปยังอยู่ครบ"}
+              — ระบบสำรองข้อมูลเดิมไว้ให้ก่อน กู้คืนได้จากไฟล์สำรองอัตโนมัติชื่อ
+              <span class="mono">prepurge-…</span>
+            </div>
+          </div>
+          ${all
+            ? html`<label class="field"
+                ><span>พิมพ์คำว่า <b>ลบทั้งหมด</b> เพื่อยืนยัน</span
+                ><input class="input" name="ctext" autocomplete="off" required
+              /></label>`
+            : html`<label class="field"
+                ><span>ลบการจองที่ประชุมก่อนวันที่</span
+                ><input
+                  class="input"
+                  type="date"
+                  name="before"
+                  value="${addDays(today, -365)}"
+                  max="${today}"
+                  required
+              /></label>`}
+          <label class="field"
+            ><span>รหัสผ่านของคุณ</span
+            ><input
+              class="input"
+              type="password"
+              name="cpw"
+              autocomplete="current-password"
+              required
+            /><small class="field-hint"
+              >ยืนยันตัวตนก่อนลบข้อมูล${total != null
+                ? ` · ตอนนี้มีการจอง ${total.toLocaleString("th-TH")} รายการ`
+                : ""}</small
+            ></label
+          >`,
+      );
+      const foot = document.createElement("div");
+      foot.className = "row";
+      setHTML(
+        foot,
+        html`<button class="btn btn-ghost" data-x>ไม่ลบ</button
+          ><button class="btn btn-danger" data-ok>
+            ${icon("trash")} ${all ? "ล้างการจองทั้งหมด" : "ลบการจองเก่า"}
+          </button>`,
+      );
+      const m = openModal({
+        title: all ? "ล้างการจองทั้งหมด?" : "ลบการจองเก่า",
+        body,
+        footer: foot,
+        size: "sm",
+      });
+      const val = (n) => body.querySelector(`[name="${n}"]`)?.value || "";
+      foot.querySelector("[data-x]").onclick = () => m.close();
+      const ok = foot.querySelector("[data-ok]");
+      ok.onclick = async () => {
+        if (!val("cpw")) return body.querySelector('[name="cpw"]').focus();
+        ok.disabled = true;
+        try {
+          const res = await api("/api/admin/purge", {
+            method: "POST",
+            body: all
+              ? {
+                  scope,
+                  confirmText: val("ctext"),
+                  confirmPassword: val("cpw"),
+                }
+              : { scope, before: val("before"), confirmPassword: val("cpw") },
+          });
+          m.close();
+          toast(
+            res.removed
+              ? `ลบการจองแล้ว ${res.removed.toLocaleString("th-TH")} รายการ`
+              : "ไม่มีการจองที่ตรงเงื่อนไข จึงไม่ได้ลบอะไร",
+            "success",
+          );
+          if (res.removed) setTimeout(() => location.reload(), 900);
+        } catch (err) {
+          ok.disabled = false;
+          toastError(err);
+        }
+      };
     }
 
     // ------------------------------------------------------------------ CONNECT

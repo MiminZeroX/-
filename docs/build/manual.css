@@ -452,6 +452,7 @@ h2 {
   padding-bottom: 2.4mm;
   border-bottom: 0.35mm solid var(--line);
   break-after: avoid;
+  break-inside: avoid;
   font-weight: 750;
 }
 h2 .n {

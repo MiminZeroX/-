@@ -1460,3 +1460,101 @@ describe("รันบนคลาวด์: IP จริงหลัง proxy �
     }
   });
 });
+
+describe("ล้างข้อมูลการจอง", () => {
+  let t;
+  before(async () => {
+    t = await startServer();
+    await t.admin("POST", "/api/admin/login", {
+      username: "admin",
+      password: INITIAL_PW,
+    });
+    await t.admin("POST", "/api/admin/password", {
+      current: INITIAL_PW,
+      next: ADMIN_PW,
+    });
+  });
+  after(() => t.close());
+
+  it("ลบเฉพาะการจองเก่า ลบทั้งหมด และกู้คืนจากไฟล์สำรองก่อนลบได้", async () => {
+    const day = nextWorkday(3);
+    for (const start of ["09:00", "11:00", "14:00"]) {
+      const r = await t.call(
+        "POST",
+        "/api/bookings",
+        booking(day, { start, end: `${Number(start.slice(0, 2)) + 1}:00` }),
+      );
+      assert.equal(r.status, 200, JSON.stringify(r.data));
+    }
+    const db = t.app.store.db;
+    db.bookings[0].date = addDays(bkkNow().date, -400); // จำลองการจองเมื่อปีก่อน
+    const today = bkkNow().date;
+
+    const noPw = await t.admin("POST", "/api/admin/purge", {
+      scope: "before",
+      before: today,
+    });
+    assert.notEqual(noPw.status, 200, "ต้องยืนยันรหัสผ่านก่อนลบ");
+    const future = await t.admin("POST", "/api/admin/purge", {
+      scope: "before",
+      before: addDays(today, 7),
+      confirmPassword: ADMIN_PW,
+    });
+    assert.equal(future.status, 400, "ห้ามลบการจองที่ยังไม่ถึงวัน");
+    assert.equal(db.bookings.length, 3);
+
+    const old = await t.admin("POST", "/api/admin/purge", {
+      scope: "before",
+      before: addDays(today, -365),
+      confirmPassword: ADMIN_PW,
+    });
+    assert.equal(old.status, 200, JSON.stringify(old.data));
+    assert.equal(old.data.removed, 1);
+    assert.equal(t.app.store.db.bookings.length, 2);
+    assert.match(old.data.snapshot, /^prepurge-/);
+
+    const noWord = await t.admin("POST", "/api/admin/purge", {
+      scope: "all",
+      confirmPassword: ADMIN_PW,
+    });
+    assert.equal(noWord.status, 400, "ต้องพิมพ์คำยืนยัน");
+    const all = await t.admin("POST", "/api/admin/purge", {
+      scope: "all",
+      confirmText: "ลบทั้งหมด",
+      confirmPassword: ADMIN_PW,
+    });
+    assert.equal(all.status, 200, JSON.stringify(all.data));
+    assert.equal(all.data.removed, 2);
+    assert.equal(t.app.store.db.bookings.length, 0);
+
+    const logs = await t.admin("GET", "/api/admin/logs?q=purge");
+    assert.equal(logs.status, 200);
+    assert.ok(
+      t.app.store.logs.filter((l) => l.action === "system.purge").length === 2,
+    );
+
+    // กู้คืนจากไฟล์สำรองที่ระบบเก็บไว้ก่อนลบทั้งหมด
+    const list = (await t.admin("GET", "/api/admin/backups")).data.backups;
+    assert.ok(list.some((b) => b.name === all.data.snapshot));
+    const snap = await t.admin(
+      "GET",
+      `/api/admin/backups/${encodeURIComponent(all.data.snapshot)}`,
+    );
+    assert.equal(snap.status, 200);
+    const restored = await t.admin("POST", "/api/admin/restore", {
+      db: snap.data,
+      confirmPassword: ADMIN_PW,
+    });
+    assert.equal(restored.status, 200, JSON.stringify(restored.data));
+    assert.equal(restored.data.bookings, 2);
+  });
+
+  it("ผู้ใช้ที่ไม่ได้เข้าสู่ระบบล้างข้อมูลไม่ได้", async () => {
+    const r = await t.call("POST", "/api/admin/purge", {
+      scope: "all",
+      confirmText: "ลบทั้งหมด",
+      confirmPassword: ADMIN_PW,
+    });
+    assert.equal(r.status, 401);
+  });
+});

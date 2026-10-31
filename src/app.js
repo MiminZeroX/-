@@ -2574,6 +2574,57 @@ function createApp(opts = {}) {
     { auth: "admin", limit: 40 * 1024 * 1024 },
   );
 
+  // ล้างข้อมูลการจอง: ลบการจองที่ผ่านไปแล้วก่อนวันที่กำหนด (ตามระยะเวลาเก็บข้อมูลส่วนบุคคล)
+  // หรือลบทั้งหมด (ก่อนเปิดใช้จริง) — ต้องยืนยันรหัสผ่าน และระบบสำรองข้อมูลเดิมไว้ก่อนเสมอ
+  const PURGE_ALL_TEXT = "ลบทั้งหมด";
+  route(
+    "POST",
+    "/api/admin/purge",
+    async (ctx) => {
+      const scope = String(ctx.body.scope || "");
+      const before = ctx.body.before;
+      const today = bkkNow().date;
+      if (scope === "before") {
+        if (!isDate(before)) throw new HttpError(400, "กรุณาระบุวันที่");
+        if (before > today)
+          throw new HttpError(
+            400,
+            "ลบได้เฉพาะการจองที่ผ่านไปแล้ว เลือกวันที่ไม่เกินวันนี้",
+          );
+      } else if (scope === "all") {
+        if (String(ctx.body.confirmText || "").trim() !== PURGE_ALL_TEXT)
+          throw new HttpError(
+            400,
+            `พิมพ์คำว่า “${PURGE_ALL_TEXT}” เพื่อยืนยันการลบการจองทั้งหมด`,
+          );
+      } else throw new HttpError(400, "คำสั่งไม่ถูกต้อง");
+      await reauth(ctx, ctx.body.confirmPassword, "confirmPassword");
+      const drop =
+        scope === "all"
+          ? store.db.bookings.slice()
+          : store.db.bookings.filter((b) => b.date < before);
+      if (!drop.length) return { removed: 0, snapshot: null };
+      const snap = store.snapshot("prepurge");
+      const gone = new Set(drop);
+      store.db.bookings = store.db.bookings.filter((b) => !gone.has(b));
+      store.flushDb();
+      log(
+        ctx,
+        "system.purge",
+        `${scope === "all" ? "ล้างการจองทั้งหมด" : `ลบการจองก่อนวันที่ ${thaiDate(before)}`} จำนวน ${drop.length} รายการ — สำรองข้อมูลเดิมไว้ที่ ${snap}`,
+        { level: "security" },
+      );
+      broadcast("bookings", {
+        action: "purge",
+        dates: [],
+        rooms: [],
+        count: drop.length,
+      });
+      return { removed: drop.length, snapshot: snap };
+    },
+    { auth: "admin" },
+  );
+
   // รหัสจอหน้าห้อง: ผู้ดูแลใช้สร้างลิงก์สำหรับแท็บเล็ตหน้าห้อง (ให้เช็คอินได้)
   route("GET", "/api/admin/kiosk-key", () => ({ key: store.db.kioskKey }), {
     auth: "admin",
