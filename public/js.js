@@ -2244,10 +2244,7 @@
       const now = bkkNow();
       setHTML(
         el,
-        // ${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}
         html`<section class="hero">
-            <span class="hero-seal" aria-hidden="true"></span>
-            <p class="eyebrow">${s.orgName}</p>
             <h1>จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะ</span></h1>
             <p class="hero-sub">
               ดูห้องว่างแบบเรียลไทม์ แล้วจองได้ทันที จากคอมพิวเตอร์ แท็บเล็ต
@@ -5511,8 +5508,9 @@
       let lastTick = 0;
       setInterval(() => {
         const n = bkkNow();
-        $("#top-clock").textContent =
-          `${pad2(Math.floor(n.minutes / 60))}:${pad2(n.minutes % 60)} น.`;
+        const topClock = $("#top-clock");
+        if (topClock)
+          topClock.textContent = `${pad2(Math.floor(n.minutes / 60))}:${pad2(n.minutes % 60)} น.`;
         current.clock?.(n);
         if (Date.now() - lastTick > 30000) {
           lastTick = Date.now();
