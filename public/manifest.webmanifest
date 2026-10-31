@@ -1,0 +1,13 @@
+{
+  "name": "ระบบจองห้องประชุม สำนักงานเขตบางรัก",
+  "short_name": "จองห้องประชุม",
+  "description": "จองห้องประชุมเล็กชั้น 2 และห้องประชุมใหญ่ชั้น 4 สำนักงานเขตบางรัก",
+  "lang": "th",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f5f7",
+  "theme_color": "#0a754d",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
