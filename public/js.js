@@ -2250,7 +2250,7 @@
             >
             <p class="eyebrow">${s.orgName}</p>
             <h1>
-              จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะxสวยx</span>
+              จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะ</span>
             </h1>
             <p class="hero-sub">
               ดูห้องว่างแบบเรียลไทม์ แล้วจองได้ทันที จากคอมพิวเตอร์ แท็บเล็ต
