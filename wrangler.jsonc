@@ -1,12 +1,23 @@
-// ลิงก์ถาวรบน Cloudflare: ส่งผู้ใช้ต่อไปยัง Quick Tunnel ที่เครื่องในสำนักงานเปิดอยู่
-// (ระบบจองตัวจริงรันบนเครื่องนั้นด้วย scripts/start-public.sh — ดูรายละเอียดในไฟล์ดังกล่าว)
+// ระบบจองห้องประชุมบน Cloudflare Workers — Cloudflare ดึงโค้ดจาก GitHub และ deploy ให้เองเมื่อ push เข้า main
+// ไม่ต้องเปิดเครื่องในสำนักงาน: หน้าเว็บมาจาก Static Assets (public/) ส่วนระบบและข้อมูลอยู่ใน Durable Object
+// รายละเอียดและการตั้งค่า: deploy/CLOUDFLARE.md
 {
   "name": "bangrak-room-booking",
   "main": "worker/index.js",
   "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "enable_request_signal"],
   "workers_dev": true,
-  "durable_objects": {
-    "bindings": [{ "name": "TUNNEL", "class_name": "TunnelTarget" }]
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none",
+    "not_found_handling": "none",
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TunnelTarget"] }]
+  "durable_objects": {
+    // ระบบจองใช้คลาสชื่อเดิม TunnelTarget ซึ่งมีบน Cloudflare แล้ว (ไม่ต้องมี migration ใหม่ — ดู worker/index.js)
+    "bindings": [{ "name": "APP", "class_name": "TunnelTarget" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TunnelTarget"] }],
+  "observability": { "enabled": true },
 }

@@ -117,6 +117,11 @@ node server.js --tls-cert=cert.pem --tls-key=key.pem   # เปิด HTTPS
 
 หรือใช้ตัวแปรแวดล้อม `PORT`, `HOST`, `DATA_DIR`, `ALLOWED_HOSTS`, `TLS_CERT`, `TLS_KEY`
 
+### รันบน Cloudflare (ไม่ต้องเปิดเครื่องในสำนักงาน)
+
+Cloudflare ดึงโค้ดจาก GitHub และ deploy ให้เองเมื่อ push เข้า `main` — หน้าเว็บมาจาก Static Assets ส่วนระบบและข้อมูลอยู่ใน Durable Object (SQLite)
+ตั้งค่าครั้งเดียวตาม [deploy/CLOUDFLARE.md](deploy/CLOUDFLARE.md) (ตั้ง Secret `ADMIN_INITIAL_PASSWORD` ก่อนเปิดเว็บครั้งแรก)
+
 ### เปิดใช้ผ่านอินเทอร์เน็ต (เครื่องคลาวด์ + HTTPS)
 
 ดูขั้นตอนใน [deploy/README.md](deploy/README.md) — สคริปต์ `deploy/install-vm.sh` ติดตั้งทุกอย่างบน VM Ubuntu ให้ในคำสั่งเดียว
@@ -211,7 +216,7 @@ brew install mkcert                 # macOS ครั้งแรกครั้
 ## สำหรับนักพัฒนา
 
 ```bash
-npm test     # ทดสอบ API และความปลอดภัยอัตโนมัติ 47 กรณี (node:test ไม่ต้องติดตั้งแพ็กเกจ)
+npm test     # ทดสอบ API ความปลอดภัย และส่วน Cloudflare อัตโนมัติ 51 กรณี (node:test ไม่ต้องติดตั้งแพ็กเกจ)
 npm start
 ```
 
@@ -245,6 +250,7 @@ public/brand/                ตราสำนักงานเขตบาง
 public/fonts/                ฟอนต์ Anuphan (SIL OFL)
 test/                ชุดทดสอบ API
 deploy/              สคริปต์ติดตั้งบนเครื่องคลาวด์ (VM Ubuntu + HTTPS) และคู่มือ
+worker/              ระบบบน Cloudflare Workers (Durable Object + ที่เก็บข้อมูล SQLite) — ตั้งค่าใน wrangler.jsonc
 docs/                คู่มือเจ้าหน้าที่ / ผู้ดูแลระบบ (ไทย/อังกฤษ) ภาพหน้าจอ และฉบับ PDF
 ```
 
