@@ -6,3 +6,6 @@ node_modules/
 Thumbs.db
 .anchor/
 dist/
+
+# Cloudflare wrangler (ทดสอบในเครื่อง)
+.wrangler/

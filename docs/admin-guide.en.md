@@ -236,7 +236,7 @@ Changes apply to every device as soon as you save, and are recorded in the log.
 | Port         | 3000 (default)                                                                                                  |
 | Resources    | 1 vCPU / 1 GB RAM serves hundreds of users. **Single instance only** — never run two processes on the same data |
 | Source       | GitHub `MiminZeroX/-` or `bangrak-room-booking.zip`                                                             |
-| Tests        | `npm test` — 47 automated API and security tests                                                                |
+| Tests        | `npm test` — 51 automated API and security tests                                                                |
 
 ```
 server.js                entry point
@@ -275,6 +275,16 @@ sudo bash deploy/install-vm.sh --domain=booking.example.go.th --office-ips=<offi
 It installs Node.js, Caddy (automatic Let's Encrypt certificates), a hardened systemd service and the firewall, and runs the app on `127.0.0.1:3000` behind Caddy.
 
 > The system stores requesters' names and phone numbers (personal data under Thailand's PDPA). Check the organisation's cloud policy first.
+
+### Option C — Cloudflare (no server to run)
+
+The whole system runs on Cloudflare Workers: pages come from Static Assets, and the system and its data live in a Durable Object (Cloudflare's SQLite).
+HTTPS and a permanent link work immediately, and **it deploys automatically when code is merged into `main`** — full steps in [deploy/CLOUDFLARE.md](../deploy/CLOUDFLARE.md) (Thai).
+
+- Set the Secret `ADMIN_INITIAL_PASSWORD` **before the site is opened for the first time** (initial password of `admin`).
+- Set the Variable `OFFICE_IPS` to the office public IP (shown under Admin › Connection).
+- All administrators forgot their passwords: set the Secret `ADMIN_RESET_PASSWORD` and open the site (resets `admin` once per value).
+- Move data from an existing server with Backup/Restore.
 
 ---
 

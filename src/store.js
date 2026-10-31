@@ -46,7 +46,9 @@ class Store {
     );
     this.presetPassword = opts.initialPassword || "";
     this.initialPassword = "";
-    fs.mkdirSync(this.backupDir, { recursive: true, mode: 0o700 });
+    // ที่เก็บข้อมูลแบบอื่น (คลาสลูก) ไม่ใช้โฟลเดอร์บนดิสก์
+    if (!opts.noDisk)
+      fs.mkdirSync(this.backupDir, { recursive: true, mode: 0o700 });
     this.db = null;
     this.logs = [];
     this.logSeq = 0;
@@ -288,6 +290,12 @@ class Store {
     if (!/^[a-z]+-[0-9-]+\.json$/.test(name)) return null;
     const file = path.join(this.backupDir, name);
     return fs.existsSync(file) ? file : null;
+  }
+
+  // เนื้อหาไฟล์สำรอง (ข้อความ JSON) หรือ null ถ้าไม่มี
+  readBackup(name) {
+    const file = this.backupPath(name);
+    return file ? fs.readFileSync(file, "utf8") : null;
   }
 
   replaceDb(data) {

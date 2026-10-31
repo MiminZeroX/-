@@ -1590,15 +1590,43 @@
   // ------------------------------------------------------------ live updates (SSE)
   function liveEvents(handlers) {
     if (!window.EventSource) return () => {};
-    const es = new EventSource("/api/events");
-    es.addEventListener("bookings", (e) =>
-      handlers.bookings?.(JSON.parse(e.data)),
-    );
-    es.addEventListener("config", (e) => handlers.config?.(JSON.parse(e.data)));
-    es.addEventListener("hello", (e) => handlers.hello?.(JSON.parse(e.data)));
-    es.onopen = () => handlers.status?.(true);
-    es.onerror = () => handlers.status?.(false);
-    return () => es.close();
+    let es = null;
+    let stopped = false;
+    let retry = null;
+    const open = () => {
+      es = new EventSource("/api/events");
+      es.addEventListener("bookings", (e) =>
+        handlers.bookings?.(JSON.parse(e.data)),
+      );
+      es.addEventListener("config", (e) =>
+        handlers.config?.(JSON.parse(e.data)),
+      );
+      es.addEventListener("hello", (e) => handlers.hello?.(JSON.parse(e.data)));
+      // ระบบปิดสตรีมตามรอบ (แจ้ง "bye" ก่อน) แล้วเบราว์เซอร์ต่อใหม่เอง — ไม่ต้องแสดงว่าออฟไลน์
+      let planned = false;
+      es.addEventListener("bye", () => {
+        planned = true;
+      });
+      es.onopen = () => {
+        planned = false;
+        handlers.status?.(true);
+      };
+      es.onerror = () => {
+        if (planned) planned = false;
+        else handlers.status?.(false);
+        // ถูกปฏิเสธ (เช่น เปิดหลายหน้าต่างเกินไป) เบราว์เซอร์จะไม่ต่อใหม่เอง: ลองใหม่ภายหลัง
+        if (es.readyState === EventSource.CLOSED && !stopped) {
+          clearTimeout(retry);
+          retry = setTimeout(open, 20000);
+        }
+      };
+    };
+    open();
+    return () => {
+      stopped = true;
+      clearTimeout(retry);
+      es.close();
+    };
   }
 
   // ------------------------------------------------------------ files
@@ -2218,9 +2246,12 @@
         el,
         html`<section class="hero">
             <span class="hero-seal" aria-hidden="true"
-              >${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}</span>
+              >${s.logo ? html`<img src="${s.logo}" alt="" />` : EMBLEM}</span
+            >
             <p class="eyebrow">${s.orgName}</p>
-            <h1>จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะxxxx</span></h1>
+            <h1>
+              จองห้องประชุม<span class="grad-text">ง่ายในไม่กี่แตะxxxx</span>
+            </h1>
             <p class="hero-sub">
               ดูห้องว่างแบบเรียลไทม์ แล้วจองได้ทันที จากคอมพิวเตอร์ แท็บเล็ต
               หรือมือถือ

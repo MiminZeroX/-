@@ -81,7 +81,11 @@ const TH_MONTHS = [
   "พ.ย.",
   "ธ.ค.",
 ];
-const DUMMY_HASH = hashPasswordSync("dummy-password-for-timing");
+// แฮชหลอกสำหรับตรวจชื่อผู้ใช้ที่ไม่มีอยู่ (เวลาตอบเท่ากัน) — สร้างเมื่อใช้ครั้งแรก
+// (Cloudflare Workers ไม่อนุญาตให้สุ่มค่าตอนโหลดโมดูล)
+let dummyHash = "";
+const DUMMY_HASH = () =>
+  dummyHash || (dummyHash = hashPasswordSync("dummy-password-for-timing"));
 
 const digits = (s) => String(s || "").replace(/\D/g, "");
 function safeEqual(a, b) {
@@ -113,12 +117,26 @@ function lanAddresses() {
   return out;
 }
 
+// ที่อยู่สั้นที่จำง่าย พาไปยังไฟล์ HTML ของแต่ละหน้า (เช่น /admin -> /admin.html)
+const SHORT_PATHS = {
+  "/admin": "/admin.html",
+  "/display": "/display.html",
+  "/calendar": "/calendar.html",
+  "/book": "/book.html",
+  "/my": "/my.html",
+};
+
 function createApp(opts = {}) {
-  const dataDir = opts.dataDir || path.join(__dirname, "..", "data");
-  const publicDir = opts.publicDir || path.join(__dirname, "..", "public");
-  const store = new Store(dataDir, {
-    initialPassword: opts.initialPassword,
-  }).load();
+  // ไม่มี __dirname บน Cloudflare Workers (ที่นั่นส่ง opts.store และ publicDir: false มาเสมอ)
+  const here = typeof __dirname === "string" ? __dirname : "";
+  const dataDir = opts.dataDir || path.join(here, "..", "data");
+  const publicDir = opts.publicDir || path.join(here, "..", "public");
+  // opts.store: ที่เก็บข้อมูลแบบอื่น (เช่น Cloudflare Durable Object) แทนไฟล์ใน dataDir
+  const store =
+    opts.store ||
+    new Store(dataDir, {
+      initialPassword: opts.initialPassword,
+    }).load();
   // ที่อยู่สาธารณะเมื่อรันบนคลาวด์ (เช่น https://booking.example.go.th) ใช้ทำลิงก์/QR
   // และบอกว่าผู้ใช้เข้าผ่าน HTTPS แม้ proxy ด้านหน้าจะส่งต่อมาแบบ HTTP
   const publicUrl = opts.publicUrl ? new URL(opts.publicUrl).origin : "";
@@ -137,18 +155,24 @@ function createApp(opts = {}) {
     store.db.kioskKey = randomToken(24);
     store.flushDb();
   }
-  const serveStatic = createStatic(publicDir);
-  const hostAllowed = createHostCheck(
-    opts.hostname === undefined ? os.hostname() : opts.hostname,
-    [
-      ...(opts.allowedHosts || []),
-      ...(publicUrl ? [new URL(publicUrl).hostname] : []),
-    ],
-  );
+  // publicDir: false = ไม่เสิร์ฟไฟล์หน้าเว็บเอง (บน Cloudflare หน้าเว็บมาจาก Static Assets)
+  const serveStatic =
+    opts.publicDir === false ? () => false : createStatic(publicDir);
+  // anyHost: ไม่ตรวจชื่อโฮสต์ (บน Cloudflare คำขอมาจาก Worker ด้านหน้าเท่านั้น ไม่มีความเสี่ยง DNS rebinding)
+  const hostAllowed = opts.anyHost
+    ? () => true
+    : createHostCheck(
+        opts.hostname === undefined ? os.hostname() : opts.hostname,
+        [
+          ...(opts.allowedHosts || []),
+          ...(publicUrl ? [new URL(publicUrl).hostname] : []),
+        ],
+      );
   const sessions = new Map(); // sha256(token) -> { adminId, expires, ip, createdAt }
   const sseClients = new Set();
   const ssePerIp = new Map(); // ip -> จำนวนการเชื่อมต่อสด
-  const SSE_PER_IP = 16;
+  const SSE_PER_IP = Number(opts.ssePerIp) || 16;
+  const SSE_MAX_MS = Number(opts.sseMaxMs) || 0;
   const warnedHosts = new Set();
   const limits = {
     booking: new RateLimiter(30, 3600000),
@@ -1180,6 +1204,18 @@ function createApp(opts = {}) {
     );
     sseClients.add(res);
     ssePerIp.set(ctx.ip, open + 1);
+    // ปิดสตรีมตามรอบ (ใช้บน Cloudflare): แจ้ง "bye" ให้หน้าเว็บรู้ว่าไม่ใช่การหลุด แล้วเบราว์เซอร์ต่อใหม่เอง
+    if (SSE_MAX_MS) {
+      const timer = setTimeout(() => {
+        try {
+          res.write("event: bye\ndata: {}\n\n");
+          res.end();
+        } catch {
+          /* ปิดไปแล้ว */
+        }
+      }, SSE_MAX_MS);
+      req.on("close", () => clearTimeout(timer));
+    }
     req.on("close", () => {
       sseClients.delete(res);
       const n = (ssePerIp.get(ctx.ip) || 1) - 1;
@@ -1216,10 +1252,10 @@ function createApp(opts = {}) {
     try {
       ok = admin
         ? await verifyPassword(password, admin.passHash)
-        : (await verifyPassword(password, DUMMY_HASH)) && false;
+        : (await verifyPassword(password, DUMMY_HASH())) && false;
       // บัญชีที่ยังใช้แฮชแบบเก่า (เร็วกว่า): ใช้เวลาให้เท่ากันเพื่อไม่ให้เดาชื่อผู้ใช้จากเวลาตอบได้
       if (!ok && admin && needsRehash(admin.passHash))
-        await verifyPassword(password, DUMMY_HASH);
+        await verifyPassword(password, DUMMY_HASH());
     } finally {
       hashing--;
     }
@@ -2356,8 +2392,8 @@ function createApp(opts = {}) {
     "GET",
     "/api/admin/backups/:name",
     (ctx) => {
-      const file = store.backupPath(ctx.params.name);
-      if (!file) throw new HttpError(404, "ไม่พบไฟล์สำรอง");
+      const raw = store.readBackup(ctx.params.name);
+      if (raw === null) throw new HttpError(404, "ไม่พบไฟล์สำรอง");
       log(
         ctx,
         "system.backup",
@@ -2366,11 +2402,7 @@ function createApp(opts = {}) {
       );
       let body;
       try {
-        body = JSON.stringify(
-          exportDb(JSON.parse(fs.readFileSync(file, "utf8"))),
-          null,
-          1,
-        );
+        body = JSON.stringify(exportDb(JSON.parse(raw)), null, 1);
       } catch {
         throw new HttpError(500, "ไฟล์สำรองนี้เสียหาย อ่านไม่ได้");
       }
@@ -2576,13 +2608,16 @@ function createApp(opts = {}) {
       lanUrls: serverUrls(),
       cloud: !!publicUrl,
       hostname: os.hostname(),
-      platform: `${os.type()} ${os.release()} (${os.arch()})`,
-      node: process.version,
+      platform: opts.platform || `${os.type()} ${os.release()} (${os.arch()})`,
+      node: process.version || "",
       startedAt,
       uptimeSec: Math.round((Date.now() - startedAt) / 1000),
       dataDir: store.dir,
       sizes: store.sizes(),
-      memoryMB: Math.round(process.memoryUsage().rss / 1048576),
+      memoryMB:
+        typeof process.memoryUsage === "function"
+          ? Math.round(process.memoryUsage().rss / 1048576)
+          : 0,
       counts: {
         bookings: store.db.bookings.length,
         rooms: store.db.rooms.filter((r) => !r.archived).length,
@@ -2682,15 +2717,6 @@ function createApp(opts = {}) {
         ctx.setCookie ? { "Set-Cookie": ctx.setCookie } : {},
       );
   }
-
-  // ที่อยู่สั้นที่จำง่าย พาไปยังไฟล์ HTML ของแต่ละหน้า (เช่น /admin -> /admin.html)
-  const SHORT_PATHS = {
-    "/admin": "/admin.html",
-    "/display": "/display.html",
-    "/calendar": "/calendar.html",
-    "/book": "/book.html",
-    "/my": "/my.html",
-  };
 
   // หน้าไม่พบ: ตอบ 404 พร้อมหน้าแนะนำทางกลับ (ไม่พาไปหน้าแรกเงียบ ๆ)
   let notFoundHtml = null;
@@ -2844,11 +2870,13 @@ function createApp(opts = {}) {
   function start(info = {}) {
     if (info.port) port = info.port;
     if (info.scheme) scheme = info.scheme;
-    store.addLog({
-      action: "system.start",
-      detail: `เริ่มระบบ (พอร์ต ${port}, Node ${process.version})`,
-      actor: "ระบบ",
-    });
+    // บน Cloudflare ระบบถูกปลุกขึ้นบ่อย จึงไม่บันทึก "เริ่มระบบ" ทุกครั้ง
+    if (info.log !== false)
+      store.addLog({
+        action: "system.start",
+        detail: `เริ่มระบบ (พอร์ต ${port}, Node ${process.version})`,
+        actor: "ระบบ",
+      });
     housekeeping();
     timers.push(setInterval(autoRelease, 30000));
     timers.push(setInterval(housekeeping, 3600000));
@@ -2885,6 +2913,7 @@ function createApp(opts = {}) {
     stop,
     store,
     autoRelease,
+    housekeeping,
     get firstRun() {
       return store.firstRun;
     },
@@ -2894,4 +2923,4 @@ function createApp(opts = {}) {
   };
 }
 
-module.exports = { createApp, lanAddresses };
+module.exports = { createApp, lanAddresses, SHORT_PATHS };
