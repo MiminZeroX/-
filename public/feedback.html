@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="th" data-brand="blue" data-theme="light" data-motion="full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ร้องเรียน · แจ้งปัญหา · ข้อเสนอแนะ · ระบบจองห้องประชุม · สำนักงานเขตบางรัก</title>
+    <meta name="description" content="ระบบจองห้องประชุมออนไลน์ภายในสำนักงานเขตบางรัก ห้องประชุมเล็กชั้น 2 และห้องประชุมใหญ่ชั้น 4" />
+    <meta name="theme-color" content="#f5f5f7" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="จองห้องประชุม" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="preload" href="fonts/anuphan-thai-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="css.css" />
+    <script src="js.js"></script>
+  </head>
+  <body data-app="user" data-page="feedback">
+    <a class="skip-link" href="#view">ข้ามไปยังเนื้อหา</a>
+
+    <header class="topbar" id="topbar">
+      <a class="brand" href="index.html" aria-label="หน้าแรก ระบบจองห้องประชุม">
+        <span class="brand-mark" id="brand-mark"><span class="seal" aria-hidden="true"></span></span>
+        <span class="brand-text">
+          <b id="brand-site">ระบบจองห้องประชุม</b>
+          <small id="brand-org">สำนักงานเขตบางรัก</small>
+        </span>
+      </a>
+      <nav class="topnav" aria-label="เมนูหลัก">
+        <a class="nav-link" data-nav="home" href="index.html">หน้าแรก</a>
+        <a class="nav-link" data-nav="calendar" href="calendar.html">ปฏิทินห้อง</a>
+        <a class="nav-link" data-nav="book" href="book.html">จองห้อง</a>
+        <a class="nav-link" data-nav="my" href="my.html">การจองของฉัน <span class="nav-count" id="nav-my-count" hidden></span></a>
+        <span class="nav-ind" aria-hidden="true"></span>
+      </nav>
+      <div class="top-actions">
+        <span class="clock-chip tabular" id="top-clock" aria-hidden="true">--:--</span>
+        <button class="btn btn-ghost btn-icon" id="btn-prefs" type="button" aria-label="ตั้งค่าการแสดงผล"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button>
+      </div>
+    </header>
+
+    <div id="banner"></div>
+    <main id="view" class="view" tabindex="-1">
+      <div class="skel" style="height: 220px; border-radius: 28px" aria-hidden="true"></div>
+    </main>
+    <footer class="site-foot" id="site-foot"></footer>
+
+    <nav class="bottomnav" aria-label="เมนูหลัก (มือถือ)">
+      <a class="tab-link" data-nav="home" href="index.html"><span class="tab-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg></span><span>หน้าแรก</span></a>
+      <a class="tab-link" data-nav="calendar" href="calendar.html"><span class="tab-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg></span><span>ปฏิทิน</span></a>
+      <a class="tab-fab" data-nav="book" href="book.html" aria-label="จองห้องประชุม"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+      <a class="tab-link" data-nav="my" href="my.html"><span class="tab-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="m9 15.5 2 2 4-4"/></svg></span><span>ของฉัน</span><i class="tab-dot" id="tab-my-dot" hidden></i></a>
+      <button class="tab-link" type="button" id="tab-prefs"><span class="tab-ic"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></span><span>ตั้งค่า</span></button>
+    </nav>
+
+    <div id="toasts" role="status" aria-live="polite"></div>
+    <div id="sr-alert" class="sr-only" role="alert"></div>
+    <div id="modal-root"></div>
+    <div id="print-root"></div>
+    <noscript><p class="noscript">กรุณาเปิดใช้งาน JavaScript เพื่อใช้ระบบจองห้องประชุม</p></noscript>
+  </body>
+</html>

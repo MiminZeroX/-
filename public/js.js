@@ -78,6 +78,8 @@
     search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
     download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
     upload: '<path d="M12 21V9M7 14l5-5 5 5M5 3h14"/>',
+    image:
+      '<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-9 9"/>',
     trash:
       '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M9 7V4h6v3"/>',
     edit: '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/>',
@@ -988,6 +990,20 @@
       "pageshow",
       (e) => e.persisted && find()?.classList.remove("v-out-up"),
     );
+  }
+
+  // ย่อรูปเป็น JPEG ให้ด้านยาวไม่เกิน max px แล้วคืนเป็น data URL
+  async function shrinkImage(file, max) {
+    const img = await createImageBitmap(file);
+    const k = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * k);
+    c.height = Math.round(img.height * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    let q = 0.85;
+    let url = c.toDataURL("image/jpeg", q);
+    while (url.length > 650000 && q > 0.4) url = c.toDataURL("image/jpeg", (q -= 0.15));
+    return url;
   }
 
   function shake(el) {
@@ -1921,6 +1937,7 @@
         calendar: "ปฏิทินห้องประชุม",
         book: "จองห้องประชุม",
         my: "การจองของฉัน",
+        feedback: "ร้องเรียน · แจ้งปัญหา · ข้อเสนอแนะ",
       }[pageName()];
       document.title = `${pageTitle ? `${pageTitle} · ` : ""}${s.siteName} · ${s.orgName}`;
       setHTML(
@@ -1930,7 +1947,10 @@
       renderBanner();
       setHTML(
         $("#site-foot"),
-        html`<span>${s.contactText}</span><span class="spacer"></span
+        html`<span>${s.contactText}</span
+          ><a href="feedback.html"
+            >${icon("mail", "i-sm")} ร้องเรียน · แจ้งปัญหา · เสนอแนะ</a
+          ><span class="spacer"></span
           ><a href="display.html">${icon("tablet", "i-sm")} จอแสดงผลหน้าห้อง</a
           ><a href="admin.html"
             >${icon("shield", "i-sm")} สำหรับผู้ดูแลระบบ</a
@@ -2016,6 +2036,7 @@
       calendar: viewCalendar,
       book: viewBook,
       my: viewMy,
+      feedback: viewFeedback,
     };
     const pageName = () =>
       document.body.dataset.page in PAGES ? document.body.dataset.page : "home";
@@ -2186,6 +2207,14 @@
         style="--room:${col(r)}"
         data-room="${r.id}"
       >
+        ${r.photo
+          ? html`<img
+              class="room-photo"
+              src="${r.photo}"
+              alt="ภาพ${r.name}"
+              loading="lazy"
+            />`
+          : ""}
         <header class="room-head">
           <div class="room-icon">${icon("door")}</div>
           <p class="room-floor">${r.floor}</p>
@@ -5077,6 +5106,100 @@
       init();
     }
 
+    // ------------------------------------------------------------------ ร้องเรียน / แจ้งปัญหา / ข้อเสนอแนะ
+    function viewFeedback(el, q) {
+      const type = ["complaint", "bug", "idea"].includes(q.get("type"))
+        ? q.get("type")
+        : "bug";
+      const opt = (v, label) =>
+        html`<option value="${v}" ${v === type ? "selected" : ""}>
+          ${label}
+        </option>`;
+      setHTML(
+        el,
+        html`<div class="page-head">
+            <div>
+              <h1>ร้องเรียน · แจ้งปัญหา · ข้อเสนอแนะ</h1>
+              <p>
+                ส่งเรื่องถึงผู้ดูแลห้องประชุม ${S.settings.orgName}
+                ไม่ต้องใส่ชื่อก็ได้ ถ้าต้องการให้ติดต่อกลับ
+                กรุณาใส่เบอร์โทรหรืออีเมล
+              </p>
+            </div>
+          </div>
+          <form class="card form-grid" id="f-form" style="padding:20px">
+            <label class="field full"
+              ><span>ประเภทเรื่อง <i class="req">*</i></span
+              ><select class="select" name="type">
+                ${opt("bug", "แจ้งปัญหาการใช้งาน / ระบบผิดพลาด")}
+                ${opt("complaint", "ร้องเรียน")}
+                ${opt("idea", "ข้อเสนอแนะ / สิ่งที่อยากให้เพิ่ม")}
+              </select></label
+            >
+            <label class="field full"
+              ><span>รายละเอียด <i class="req">*</i></span
+              ><textarea
+                class="textarea"
+                name="message"
+                rows="6"
+                minlength="5"
+                maxlength="2000"
+                required
+                placeholder="เล่าสิ่งที่เกิดขึ้น หน้าไหน ห้องไหน วันเวลาใด หรือสิ่งที่อยากให้ปรับปรุง"
+              ></textarea></label
+            >
+            <label class="field"
+              ><span>ชื่อ (ไม่บังคับ)</span
+              ><input class="input" name="name" maxlength="100" autocomplete="name"
+            /></label>
+            <label class="field"
+              ><span>เบอร์โทรหรืออีเมลสำหรับติดต่อกลับ (ไม่บังคับ)</span
+              ><input class="input" name="contact" maxlength="100"
+            /></label>
+            <div class="full">
+              <button class="btn btn-primary" type="submit">
+                ${icon("mail")} ส่งเรื่อง
+              </button>
+            </div>
+          </form>`,
+      );
+      $("#f-form", el).onsubmit = async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const btn = form.querySelector("button");
+        btn.classList.add("is-loading");
+        const f = form.elements;
+        try {
+          await api("/api/feedback", {
+            method: "POST",
+            body: {
+              type: f.type.value,
+              message: f.message.value,
+              name: f.name.value,
+              contact: f.contact.value,
+            },
+          });
+          setHTML(
+            el,
+            html`<div class="card success">
+              <div class="empty-art">${icon("check-circle")}</div>
+              <h2>ส่งเรื่องเรียบร้อยแล้ว</h2>
+              <p>ขอบคุณที่แจ้งเรื่องนี้ ผู้ดูแลห้องประชุมจะตรวจสอบโดยเร็ว</p>
+              <div class="row-wrap">
+                <a class="btn btn-soft" href="feedback.html">ส่งเรื่องอื่นอีก</a>
+                <a class="btn btn-ghost" href="index.html">กลับหน้าแรก</a>
+              </div>
+            </div>`,
+          );
+        } catch (err) {
+          toastError(err);
+          shake(form);
+        } finally {
+          btn.classList.remove("is-loading");
+        }
+      };
+    }
+
     // ------------------------------------------------------------------ MY BOOKINGS
     function viewMy(el, q, ctx) {
       let tab = "upcoming";
@@ -5619,6 +5742,13 @@
         id: "bookings",
         label: "รายการจอง",
         icon: "calendar",
+        role: "staff",
+        group: "ภาพรวม",
+      },
+      {
+        id: "feedback",
+        label: "ร้องเรียนและข้อเสนอแนะ",
+        icon: "mail",
         role: "staff",
         group: "ภาพรวม",
       },
@@ -8489,6 +8619,13 @@
               /></label>
             </div>
           </div>
+          <div class="field full" data-f="photo">
+            <span
+              >รูปห้อง
+              <small class="faint">(แสดงบนการ์ดห้องหน้าแรก)</small></span
+            >
+            <div class="room-photo-edit" id="rf-photo"></div>
+          </div>
           <div class="field full">
             <span>อุปกรณ์ที่มีในห้อง</span>
             <div class="chips" id="rf-eq">
@@ -8548,6 +8685,52 @@
         d.color = e.target.value;
         $$(".swatch", sw).forEach((x) => x.classList.remove("on"));
       };
+      // รูปห้อง: ย่อเป็น JPEG ด้านยาวไม่เกิน 1280px ก่อนส่ง (เก็บในฐานข้อมูลเดียวกับการจอง)
+      let photo = d.photo || "";
+      let photoChanged = false;
+      const photoBox = $("#rf-photo", body);
+      const drawPhoto = () =>
+        setHTML(
+          photoBox,
+          html`${photo
+              ? html`<img class="room-photo" src="${photo}" alt="" />`
+              : html`<div class="room-photo empty-photo">${icon("image")}</div>`}
+            <div class="row-wrap">
+              <label class="btn btn-soft btn-sm"
+                >${icon("upload")} ${photo ? "เปลี่ยนรูป" : "เลือกรูป"}<input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+              /></label>
+              ${photo
+                ? html`<button
+                    type="button"
+                    class="btn btn-danger-soft btn-sm"
+                    data-photo-rm
+                  >
+                    ${icon("trash")} ลบรูป
+                  </button>`
+                : ""}
+            </div>`,
+        );
+      drawPhoto();
+      photoBox.onchange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          photo = await shrinkImage(file, 1280);
+          photoChanged = true;
+          drawPhoto();
+        } catch {
+          toast("เปิดไฟล์รูปนี้ไม่ได้ กรุณาใช้ไฟล์ JPG หรือ PNG", "warning");
+        }
+      };
+      photoBox.onclick = (e) => {
+        if (!e.target.closest("[data-photo-rm]")) return;
+        photo = "";
+        photoChanged = true;
+        drawPhoto();
+      };
       $("#rf-eq", body).onclick = (e) => {
         const c = e.target.closest("[data-eq]");
         if (!c) return;
@@ -8569,6 +8752,7 @@
           active: f.active.checked,
           closedMessage: f.closedMessage.value.trim(),
         };
+        if (photoChanged) payload.photo = photo;
         try {
           if (editing)
             await api(`/api/admin/rooms/${r.id}`, {
@@ -10900,8 +11084,106 @@
       };
     }
 
+    async function secFeedback(el, ctx) {
+      let filter = "new";
+      let data = { items: [], types: {} };
+      setHTML(
+        el,
+        html`${sectionHead(
+            "ร้องเรียน · แจ้งปัญหา · ข้อเสนอแนะ",
+            "เรื่องที่ผู้ใช้ส่งมาจากหน้า “ร้องเรียน · แจ้งปัญหา · เสนอแนะ” ท้ายทุกหน้า",
+          )}
+          <div class="seg" id="fb-seg">
+            <button data-value="new" aria-pressed="true">ยังไม่ดำเนินการ</button>
+            <button data-value="done">ดำเนินการแล้ว</button>
+            <button data-value="all">ทั้งหมด</button>
+          </div>
+          <div class="my-list" id="fb-list"></div>`,
+      );
+      const seg = $("#fb-seg", el);
+      initSeg(seg);
+      const listEl = $("#fb-list", el);
+      const badge = { complaint: "badge-danger", bug: "badge-warn", idea: "badge-info" };
+
+      function render() {
+        const items = data.items.filter(
+          (f) => filter === "all" || f.status === filter,
+        );
+        setHTML(
+          listEl,
+          items.length
+            ? items.map(
+                (f) => html`<article class="card" style="padding:16px 18px">
+                  <div class="row-wrap">
+                    <span class="badge ${badge[f.type] || ""}"
+                      >${data.types[f.type] || f.type}</span
+                    >
+                    ${f.status === "done"
+                      ? html`<span class="badge badge-ok"
+                          >${icon("check")} ดำเนินการแล้ว</span
+                        >`
+                      : ""}
+                    <span class="small muted">${fmtDateTime(f.ts)}</span>
+                    <span class="spacer"></span>
+                    <button class="btn btn-soft btn-sm" data-id="${f.id}">
+                      ${f.status === "done"
+                        ? html`${icon("refresh")} เปิดเรื่องใหม่`
+                        : html`${icon("check")} ทำเครื่องหมายว่าดำเนินการแล้ว`}
+                    </button>
+                  </div>
+                  <p style="white-space:pre-wrap;margin:10px 0 6px">${f.message}</p>
+                  ${f.name || f.contact
+                    ? html`<div class="small muted">
+                        ${icon("user", "i-sm")} ${f.name || "-"}
+                        ${f.contact ? html` · ${f.contact}` : ""}
+                      </div>`
+                    : ""}
+                </article>`,
+              )
+            : emptyBox("mail", "ยังไม่มีเรื่องในหมวดนี้"),
+        );
+      }
+
+      async function load() {
+        try {
+          data = await api("/api/admin/feedback");
+          render();
+        } catch (err) {
+          toastError(err);
+        }
+      }
+
+      seg.onclick = (e) => {
+        const b = e.target.closest("button[data-value]");
+        if (!b) return;
+        filter = b.dataset.value;
+        segSelect(seg, filter);
+        render();
+      };
+      listEl.onclick = async (e) => {
+        const b = e.target.closest("button[data-id]");
+        if (!b) return;
+        const f = data.items.find((x) => x.id === b.dataset.id);
+        b.classList.add("is-loading");
+        try {
+          const res = await api(`/api/admin/feedback/${encodeURIComponent(f.id)}`, {
+            method: "PATCH",
+            body: { status: f.status === "done" ? "new" : "done" },
+          });
+          Object.assign(f, res.item);
+          render();
+        } catch (err) {
+          toastError(err);
+          b.classList.remove("is-loading");
+        }
+      };
+      ctx.refresh = load;
+      await load();
+    }
+
     const RENDER = {
       dashboard: secDashboard,
+      feedback: secFeedback,
       bookings: secBookings,
       rooms: secRooms,
       data: secData,
