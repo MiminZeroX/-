@@ -124,7 +124,18 @@ const SHORT_PATHS = {
   "/calendar": "/calendar.html",
   "/book": "/book.html",
   "/my": "/my.html",
+  "/feedback": "/feedback.html",
 };
+
+const FEEDBACK_TYPES = {
+  complaint: "ร้องเรียน",
+  bug: "แจ้งปัญหาการใช้งาน",
+  idea: "ข้อเสนอแนะ",
+};
+const MAX_FEEDBACK = 2000;
+// รูปห้อง: ไม่รับ SVG (อาจฝังสคริปต์ได้) ย่อขนาดจากหน้าแอดมินก่อนส่ง
+const PHOTO_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+const MAX_PHOTO = 700000;
 
 function createApp(opts = {}) {
   // ไม่มี __dirname บน Cloudflare Workers (ที่นั่นส่ง opts.store และ publicDir: false มาเสมอ)
@@ -184,6 +195,7 @@ function createApp(opts = {}) {
     loginUser: new RateLimiter(12, 15 * 60000),
     password: new RateLimiter(5, 15 * 60000),
     my: new RateLimiter(240, 10 * 60000),
+    feedback: new RateLimiter(10, 3600000),
   };
   const MAX_ACTIVE_PER_DEVICE = 60;
   const MAX_HASHING = 4; // จำนวนการตรวจรหัสผ่านพร้อมกันสูงสุด
@@ -282,6 +294,10 @@ function createApp(opts = {}) {
       active: r.active,
       closedMessage: r.closedMessage,
       needsApproval: needsApproval(r),
+      // ที่อยู่รูปแยกจาก /api/config (โหลดทุกหน้า) ให้เบราว์เซอร์แคชได้ เปลี่ยนรูปแล้ว v เปลี่ยนตาม
+      photo: r.photo
+        ? `/api/rooms/${encodeURIComponent(r.id)}/photo?v=${sha256(r.photo).slice(0, 12)}`
+        : "",
     };
   }
 
@@ -858,6 +874,7 @@ function createApp(opts = {}) {
     if (has(body, "approval")) r.approval = String(body.approval || "");
     if (has(body, "closedMessage"))
       r.closedMessage = cleanStr(body.closedMessage, 200);
+    if (has(body, "photo")) r.photo = String(body.photo || "");
     if (!r.name) throw bad("name", "กรุณาระบุชื่อห้อง");
     if (!Number.isInteger(r.capacity) || r.capacity < 1 || r.capacity > 10000)
       throw bad("capacity", "ความจุต้องเป็นตัวเลข 1–10000");
@@ -865,6 +882,10 @@ function createApp(opts = {}) {
       throw bad("color", "รูปแบบสีไม่ถูกต้อง");
     if (!["inherit", "yes", "no"].includes(r.approval))
       throw bad("approval", "ค่าการอนุมัติไม่ถูกต้อง");
+    if (r.photo && !PHOTO_RE.test(r.photo))
+      throw bad("photo", "ไฟล์รูปห้องไม่ถูกต้อง (รองรับ JPG, PNG, WEBP)");
+    if ((r.photo || "").length > MAX_PHOTO)
+      throw bad("photo", "รูปห้องใหญ่เกินไป (ไม่เกินประมาณ 500KB)");
     return r;
   }
 
@@ -943,6 +964,20 @@ function createApp(opts = {}) {
     serverUrls: serverUrls(),
   }));
 
+  route("GET", "/api/rooms/:id/photo", (ctx) => {
+    const m = /^data:(image\/[a-z]+);base64,(.*)$/.exec(
+      roomById(ctx.params.id)?.photo || "",
+    );
+    if (!m) throw new HttpError(404, "ไม่พบรูปห้อง");
+    ctx.res.writeHead(200, {
+      ...SECURITY_HEADERS,
+      "Content-Type": m[1],
+      "Cache-Control": "public, max-age=31536000, immutable",
+    });
+    ctx.res.end(Buffer.from(m[2], "base64"));
+    return undefined;
+  });
+
   route("GET", "/api/bookings", (ctx) => {
     const today = bkkNow().date;
     const from = ctx.query.get("from") || today;
@@ -996,6 +1031,35 @@ function createApp(opts = {}) {
         .map(ownerView),
     }));
     return { items: result };
+  });
+
+  route("POST", "/api/feedback", (ctx) => {
+    const type = has(FEEDBACK_TYPES, ctx.body.type) ? ctx.body.type : "";
+    const message = cleanText(ctx.body.message, 2000);
+    if (!type) throw new HttpError(400, "กรุณาเลือกประเภทเรื่อง");
+    if (message.length < 5)
+      throw new HttpError(400, "กรุณาเขียนรายละเอียดอย่างน้อย 5 ตัวอักษร");
+    const rl = limits.feedback.hit(
+      ctx.ip,
+      limits.feedback.limit * ipFactor(ctx.ip),
+    );
+    if (!rl.ok)
+      throw new HttpError(429, "ส่งเรื่องบ่อยเกินไป กรุณาลองใหม่ภายหลัง");
+    const item = {
+      id: randomId(),
+      ts: Date.now(),
+      type,
+      message,
+      name: cleanStr(ctx.body.name, 100),
+      contact: cleanStr(ctx.body.contact, 100),
+      status: "new",
+    };
+    const list = store.db.feedback;
+    list.push(item);
+    if (list.length > MAX_FEEDBACK) list.splice(0, list.length - MAX_FEEDBACK);
+    store.saveDb();
+    log(ctx, "feedback.create", `${FEEDBACK_TYPES[type]}: ${cleanStr(message, 120)}`);
+    return { ok: true };
   });
 
   route("POST", "/api/lookup", (ctx) => {
@@ -1815,6 +1879,32 @@ function createApp(opts = {}) {
     { auth: "admin" },
   );
 
+  // ---------- admin: เรื่องร้องเรียน / แจ้งปัญหา / ข้อเสนอแนะ ----------
+  route(
+    "GET",
+    "/api/admin/feedback",
+    () => ({ items: [...store.db.feedback].reverse(), types: FEEDBACK_TYPES }),
+    { auth: "staff" },
+  );
+
+  route(
+    "PATCH",
+    "/api/admin/feedback/:id",
+    (ctx) => {
+      const f = store.db.feedback.find((x) => x.id === ctx.params.id);
+      if (!f) throw new HttpError(404, "ไม่พบเรื่องนี้");
+      f.status = ctx.body.status === "done" ? "done" : "new";
+      store.saveDb();
+      log(
+        ctx,
+        "feedback.update",
+        `${f.status === "done" ? "ดำเนินการแล้ว" : "เปิดเรื่องใหม่"}: ${FEEDBACK_TYPES[f.type] || ""} ${cleanStr(f.message, 80)}`,
+      );
+      return { item: f };
+    },
+    { auth: "staff" },
+  );
+
   // ---------- admin: settings ----------
   route("GET", "/api/admin/settings", () => ({ settings: S() }), {
     auth: "admin",
@@ -1891,7 +1981,7 @@ function createApp(opts = {}) {
       broadcast("config", { changed: ["rooms"] });
       return { room: r };
     },
-    { auth: "admin" },
+    { auth: "admin", limit: 1024 * 1024 },
   );
 
   route(
@@ -1944,7 +2034,7 @@ function createApp(opts = {}) {
       }
       return { room: r };
     },
-    { auth: "admin" },
+    { auth: "admin", limit: 1024 * 1024 },
   );
 
   route(

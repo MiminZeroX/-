@@ -144,6 +144,7 @@ class Store {
       r.order = Number.isFinite(r.order) ? r.order : i + 1;
       r.capacity = Number(r.capacity) || 0;
       r.closedMessage = r.closedMessage || "";
+      r.photo = typeof r.photo === "string" ? r.photo : "";
       r.color = /^#[0-9a-f]{6}$/i.test(r.color || "") ? r.color : "#0284c7";
     });
     db.departments = Array.isArray(raw.departments)
@@ -155,6 +156,10 @@ class Store {
       .map(sanitizeBooking)
       .filter(Boolean);
     db.admins = Array.isArray(raw.admins) ? raw.admins : [];
+    // เรื่องร้องเรียน แจ้งปัญหา และข้อเสนอแนะจากผู้ใช้
+    db.feedback = (Array.isArray(raw.feedback) ? raw.feedback : []).filter(
+      (f) => f && typeof f.id === "string" && typeof f.message === "string",
+    );
     db.counters =
       raw.counters && typeof raw.counters === "object" ? raw.counters : {};
     return db;
