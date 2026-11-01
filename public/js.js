@@ -5746,6 +5746,13 @@
         group: "ภาพรวม",
       },
       {
+        id: "kpi",
+        label: "รายงานตัวชี้วัด (KPI)",
+        icon: "chart",
+        role: "staff",
+        group: "ภาพรวม",
+      },
+      {
         id: "feedback",
         label: "ร้องเรียนและข้อเสนอแนะ",
         icon: "mail",
@@ -11084,6 +11091,251 @@
       };
     }
 
+    // ------------------------------------------------------------------ รายงานตัวชี้วัด (KPI)
+    // ช่วงรายงานจากวันที่อ้างอิง: รายวัน / สัปดาห์ (จันทร์–อาทิตย์) / เดือน / ปี หรือกำหนดเอง
+    function kpiRange(mode, date, from, to) {
+      if (mode === "day") return [date, date];
+      if (mode === "week") {
+        const mon = addDays(date, -((weekdayOf(date) + 6) % 7));
+        return [mon, addDays(mon, 6)];
+      }
+      if (mode === "month") {
+        const first = `${date.slice(0, 8)}01`;
+        return [first, addDays(`${addDays(first, 32).slice(0, 8)}01`, -1)];
+      }
+      if (mode === "year") return [`${date.slice(0, 4)}-01-01`, `${date.slice(0, 4)}-12-31`];
+      return [from, to];
+    }
+    function kpiShift(mode, date, n) {
+      if (mode === "day") return addDays(date, n);
+      if (mode === "week") return addDays(date, 7 * n);
+      const [y, m] = date.split("-").map(Number);
+      if (mode === "year") return `${y + n}-${String(m).padStart(2, "0")}-01`;
+      const t = y * 12 + (m - 1) + n;
+      return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}-01`;
+    }
+    function kpiTitle(mode, from, to) {
+      if (mode === "day") return `รายวัน ${fmtDate(from, "long")}`;
+      if (mode === "month") return `รายเดือน ${fmtDate(from, "month")}`;
+      if (mode === "year") return `รายปี พ.ศ. ${Number(from.slice(0, 4)) + 543}`;
+      return `${mode === "week" ? "รายสัปดาห์ " : ""}${fmtDate(from, "full")} – ${fmtDate(to, "full")}`;
+    }
+    const kpiVal = (k) => (k.value === null ? "–" : `${k.value.toLocaleString("th-TH")}`);
+    const kpiGoal = (k) => `${k.better === "high" ? "≥" : "≤"} ${k.target} ${k.unit}`;
+    const kpiState = (k) =>
+      k.pass === null ? ["info", "ไม่มีข้อมูล"] : k.pass ? ["ok", "ผ่านเป้าหมาย"] : ["warn", "ต่ำกว่าเป้าหมาย"];
+
+    async function secKpi(el) {
+      const st = { mode: "month", date: bkkNow().date, from: bkkNow().date, to: bkkNow().date };
+      let data = null;
+      setHTML(
+        el,
+        html`${sectionHead(
+            "รายงานตัวชี้วัด (KPI)",
+            "สรุปผลการใช้งานระบบจองห้องประชุมเทียบกับเป้าหมาย สำหรับรายงานผู้บริหาร",
+            html`<button class="btn btn-soft" id="k-print">
+              ${icon("printer")} พิมพ์ / บันทึก PDF
+            </button>`,
+          )}
+          <div class="toolbar card" style="padding:12px">
+            <div class="seg" id="k-mode">
+              <button data-value="day">รายวัน</button>
+              <button data-value="week">รายสัปดาห์</button>
+              <button data-value="month" aria-pressed="true">รายเดือน</button>
+              <button data-value="year">รายปี</button>
+              <button data-value="custom">กำหนดเอง</button>
+            </div>
+            <div class="row-wrap" id="k-nav">
+              <button class="btn btn-ghost btn-icon" data-shift="-1" aria-label="ช่วงก่อนหน้า">
+                ${icon("chevron-left")}
+              </button>
+              <input class="input" type="date" id="k-date" aria-label="วันที่อ้างอิง" />
+              <button class="btn btn-ghost btn-icon" data-shift="1" aria-label="ช่วงถัดไป">
+                ${icon("chevron-right")}
+              </button>
+            </div>
+            <div class="row-wrap" id="k-custom" hidden>
+              <label class="field"><span>ตั้งแต่</span><input class="input" type="date" id="k-from" /></label>
+              <label class="field"><span>ถึง</span><input class="input" type="date" id="k-to" /></label>
+            </div>
+          </div>
+          <div id="k-body"></div>`,
+      );
+      const seg = $("#k-mode", el);
+      initSeg(seg);
+      const body = $("#k-body", el);
+
+      function render() {
+        const d = data;
+        const u = d.usage;
+        setHTML(
+          body,
+          html`<h3 style="margin:18px 0 12px">${kpiTitle(st.mode, d.from, d.to)}</h3>
+            <div class="kpis">
+              ${d.kpis.map((k) => {
+                const [cls, label] = kpiState(k);
+                return html`<div class="kpi ${cls}">
+                  <div class="k-ic">${icon(cls === "ok" ? "check-circle" : cls === "warn" ? "alert" : "info")}</div>
+                  <div class="k-val">${kpiVal(k)}<small>${k.value === null ? "" : k.unit}</small></div>
+                  <div class="k-label">${k.label}</div>
+                  <div class="k-sub">เป้าหมาย ${kpiGoal(k)} · <b>${label}</b></div>
+                  <div class="k-sub">${k.note}</div>
+                </div>`;
+              })}
+            </div>
+            <div class="kpis" style="margin-top:14px">
+              ${[
+                ["calendar-check", "การจองที่ใช้งานจริง", u.bookings, "รายการ"],
+                ["clock", "ชั่วโมงการประชุมรวม", u.hours, "ชม."],
+                ["users", "ผู้เข้าร่วมประชุมรวม", u.attendees, "คน"],
+                ["building", "หน่วยงานที่ใช้บริการ", u.departments, "หน่วยงาน"],
+              ].map(
+                ([ic, label, v, unit]) => html`<div class="kpi info">
+                  <div class="k-ic">${icon(ic)}</div>
+                  <div class="k-val">${v.toLocaleString("th-TH")}<small>${unit}</small></div>
+                  <div class="k-label">${label}</div>
+                </div>`,
+              )}
+            </div>
+            <div class="split" style="margin-top:14px">
+              <section class="card panel">
+                <div class="panel-head"><h3>${icon("door")} การใช้งานแยกตามห้อง</h3></div>
+                <div class="table-wrap">
+                  <table class="table">
+                    <thead><tr><th>ห้อง</th><th>การจอง</th><th>ชั่วโมง</th><th>อัตราการใช้</th></tr></thead>
+                    <tbody>
+                      ${u.perRoom.map(
+                        (r) => html`<tr>
+                          <td>${r.name}</td><td>${r.count}</td><td>${r.hours}</td>
+                          <td>${r.utilization === null ? "–" : `${r.utilization}%`}</td>
+                        </tr>`,
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+              <section class="card panel">
+                <div class="panel-head"><h3>${icon("shield")} เรื่องร้องเรียนและความปลอดภัย</h3></div>
+                <div class="table-wrap">
+                  <table class="table">
+                    <tbody>
+                      ${Object.entries(d.feedback.byType).map(
+                        ([k, v]) => html`<tr><td>${k}</td><td>${v} เรื่อง</td></tr>`,
+                      )}
+                      <tr><td>เข้าสู่ระบบผู้ดูแลสำเร็จ</td><td>${d.security.logins} ครั้ง</td></tr>
+                      <tr><td>เข้าสู่ระบบไม่สำเร็จ</td><td>${d.security.loginFails} ครั้ง</td></tr>
+                      <tr><td>เหตุการณ์ด้านความปลอดภัย</td><td>${d.security.events} ครั้ง</td></tr>
+                      <tr><td>ดาวน์โหลดไฟล์สำรองข้อมูลด้วยตนเอง</td><td>${d.security.manualBackups} ครั้ง</td></tr>
+                      <tr><td>ยกเลิก/ไม่อนุมัติ · คืนห้องอัตโนมัติ</td><td>${u.cancelled} · ${u.released} รายการ</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>`,
+        );
+      }
+
+      async function load() {
+        const [from, to] = kpiRange(st.mode, st.date, st.from, st.to);
+        $("#k-date", el).value = st.date;
+        $("#k-from", el).value = st.from = from;
+        $("#k-to", el).value = st.to = to;
+        try {
+          data = await api(`/api/admin/kpi?from=${from}&to=${to}`);
+          render();
+        } catch (err) {
+          toastError(err);
+        }
+      }
+
+      seg.onclick = (e) => {
+        const b = e.target.closest("button[data-value]");
+        if (!b) return;
+        st.mode = b.dataset.value;
+        segSelect(seg, st.mode);
+        $("#k-nav", el).hidden = st.mode === "custom";
+        $("#k-custom", el).hidden = st.mode !== "custom";
+        load();
+      };
+      $("#k-nav", el).onclick = (e) => {
+        const b = e.target.closest("[data-shift]");
+        if (!b) return;
+        st.date = kpiShift(st.mode, st.date, Number(b.dataset.shift));
+        load();
+      };
+      $("#k-date", el).onchange = (e) => {
+        if (!e.target.value) return;
+        st.date = e.target.value;
+        load();
+      };
+      $("#k-custom", el).onchange = () => {
+        const f = $("#k-from", el).value;
+        const t = $("#k-to", el).value;
+        if (!f || !t) return;
+        st.from = f;
+        st.to = t < f ? f : t;
+        load();
+      };
+      $("#k-print", el).onclick = () => {
+        if (!data) return;
+        const s = A.settings;
+        const d = data;
+        const n = bkkNow();
+        setHTML(
+          $("#print-root"),
+          html`<div class="slip">
+            <div class="slip-head">
+              <img src="${s.logo || "brand/seal.svg"}" alt="" />
+              <div><h1>${s.orgName}</h1><p>${s.siteName}</p></div>
+            </div>
+            <h2 class="slip-title">รายงานตัวชี้วัดการใช้งานระบบ (KPI)</h2>
+            <div class="slip-code">${kpiTitle(st.mode, d.from, d.to)}</div>
+            <table class="slip-schedule">
+              <thead><tr><th>ตัวชี้วัด</th><th>ผล</th><th>เป้าหมาย</th><th>สถานะ</th><th>รายละเอียด</th></tr></thead>
+              <tbody>
+                ${d.kpis.map(
+                  (k) => html`<tr>
+                    <td>${k.label}</td>
+                    <td>${kpiVal(k)} ${k.value === null ? "" : k.unit}</td>
+                    <td>${kpiGoal(k)}</td>
+                    <td>${kpiState(k)[1]}</td>
+                    <td>${k.note}</td>
+                  </tr>`,
+                )}
+              </tbody>
+            </table>
+            <table class="slip-schedule" style="margin-top:6mm">
+              <thead><tr><th>ห้อง</th><th>การจอง</th><th>ชั่วโมง</th><th>อัตราการใช้</th></tr></thead>
+              <tbody>
+                ${d.usage.perRoom.map(
+                  (r) => html`<tr><td>${r.name}</td><td>${r.count}</td><td>${r.hours}</td>
+                    <td>${r.utilization === null ? "–" : `${r.utilization}%`}</td></tr>`,
+                )}
+                <tr><td><b>รวม</b></td><td><b>${d.usage.bookings}</b></td><td><b>${d.usage.hours}</b></td><td></td></tr>
+              </tbody>
+            </table>
+            <p style="margin-top:4mm">
+              ผู้เข้าร่วมประชุมรวม ${d.usage.attendees.toLocaleString("th-TH")} คน ·
+              หน่วยงานที่ใช้บริการ ${d.usage.departments} หน่วยงาน ·
+              เรื่องร้องเรียน/แจ้งปัญหา ${d.feedback.total} เรื่อง (ดำเนินการแล้ว ${d.feedback.done}) ·
+              เข้าสู่ระบบไม่สำเร็จ ${d.security.loginFails} ครั้ง
+            </p>
+            <div class="slip-foot">
+              <div>
+                จัดทำเมื่อ ${fmtDate(n.date, "full")} เวลา ${toHHMM(n.minutes)} น.
+                <div class="slip-sign">
+                  ลงชื่อ ..................................................... ผู้รายงาน<br />
+                  (.....................................................)
+                </div>
+              </div>
+            </div>
+          </div>`,
+        );
+        setTimeout(() => window.print(), 50);
+      };
+      await load();
+    }
+
     async function secFeedback(el, ctx) {
       let filter = "new";
       let data = { items: [], types: {} };
@@ -11184,6 +11436,7 @@
     const RENDER = {
       dashboard: secDashboard,
       feedback: secFeedback,
+      kpi: secKpi,
       bookings: secBookings,
       rooms: secRooms,
       data: secData,
