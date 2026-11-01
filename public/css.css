@@ -1912,7 +1912,7 @@ table.table {
   .clock-chip {
      /* none ปิดนาฬิกาบนขวา
         inline-block คือเปิด*/
-    display: none; 
+    display: inline-block; 
   } 
 }
 
