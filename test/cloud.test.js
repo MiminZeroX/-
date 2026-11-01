@@ -168,6 +168,80 @@ describe(
       app.stop();
     });
 
+    it("รับเรื่องร้องเรียน/แจ้งปัญหา ผู้ดูแลเห็นและปิดเรื่องได้ และเก็บข้ามการเริ่มระบบใหม่", async () => {
+      const sql = fakeSql();
+      let { app } = boot(sql);
+      let r = await call(app, "POST", "/api/feedback", { type: "x", message: "ทดสอบระบบ" });
+      assert.equal(r.status, 400);
+      r = await call(app, "POST", "/api/feedback", { type: "bug", message: "สั้น" });
+      assert.equal(r.status, 400);
+      r = await call(app, "POST", "/api/feedback", {
+        type: "bug",
+        message: "ปุ่มจองกดไม่ได้‮ บนมือถือ",
+        name: "สมใจ",
+        contact: "0812345678",
+      });
+      assert.equal(r.status, 200);
+      // ผู้ไม่ได้เข้าสู่ระบบอ่านเรื่องไม่ได้
+      r = await call(app, "GET", "/api/admin/feedback");
+      assert.equal(r.status, 401);
+      app.stop();
+
+      ({ app } = boot(sql));
+      r = await call(app, "POST", "/api/admin/login", {
+        username: "admin",
+        password: "first-run-pass-77",
+      });
+      let cookie = r.headers.get("set-cookie").split(";")[0];
+      await call(app, "POST", "/api/admin/password", { current: "first-run-pass-77", next: ADMIN_PW }, { cookie });
+      r = await call(app, "POST", "/api/admin/login", { username: "admin", password: ADMIN_PW });
+      cookie = r.headers.get("set-cookie").split(";")[0];
+      const list = await (await call(app, "GET", "/api/admin/feedback", undefined, { cookie })).json();
+      assert.equal(list.items.length, 1);
+      const f = list.items[0];
+      assert.equal(f.message, "ปุ่มจองกดไม่ได้ บนมือถือ", "ตัดอักขระกลับทิศข้อความ");
+      assert.equal(f.status, "new");
+      r = await call(app, "PATCH", `/api/admin/feedback/${f.id}`, { status: "done" }, { cookie });
+      assert.equal((await r.json()).item.status, "done");
+      app.stop();
+
+      // จำกัด 10 เรื่องต่อชั่วโมงต่อ IP
+      ({ app } = boot(fakeSql()));
+      for (let i = 0; i < 10; i++)
+        assert.equal((await call(app, "POST", "/api/feedback", { type: "idea", message: `ข้อเสนอที่ ${i}` })).status, 200);
+      assert.equal((await call(app, "POST", "/api/feedback", { type: "idea", message: "เกินโควตา" })).status, 429);
+      app.stop();
+    });
+
+    it("รูปห้อง: แอดมินอัปโหลด/ลบได้ ผู้ใช้โหลดผ่านลิงก์แยก ไม่รับ SVG", async () => {
+      const { app } = boot(fakeSql());
+      let r = await call(app, "POST", "/api/admin/login", { username: "admin", password: "first-run-pass-77" });
+      let cookie = r.headers.get("set-cookie").split(";")[0];
+      await call(app, "POST", "/api/admin/password", { current: "first-run-pass-77", next: ADMIN_PW }, { cookie });
+      r = await call(app, "POST", "/api/admin/login", { username: "admin", password: ADMIN_PW });
+      cookie = r.headers.get("set-cookie").split(";")[0];
+      const png = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+      const room = (await (await call(app, "GET", "/api/admin/rooms", undefined, { cookie })).json()).rooms[0];
+      const put = (photo) =>
+        call(app, "PUT", `/api/admin/rooms/${room.id}`, { ...room, photo }, { cookie });
+      const svg = `data:image/svg+xml;base64,${Buffer.from("<svg/>").toString("base64")}`;
+      assert.equal((await put(svg)).status, 400);
+      assert.equal((await put(`data:image/png;base64,${png.toString("base64")}`)).status, 200);
+      let cfg = await (await call(app, "GET", "/api/config")).json();
+      const url = cfg.rooms.find((x) => x.id === room.id).photo;
+      assert.match(url, /^\/api\/rooms\/.+\/photo\?v=[0-9a-f]{12}$/);
+      assert.ok(!JSON.stringify(cfg).includes("base64"), "config ไม่ฝังข้อมูลรูป");
+      r = await call(app, "GET", url);
+      assert.equal(r.status, 200);
+      assert.equal(r.headers.get("content-type"), "image/png");
+      assert.deepEqual(Buffer.from(await r.arrayBuffer()), png);
+      assert.equal((await put("")).status, 200);
+      cfg = await (await call(app, "GET", "/api/config")).json();
+      assert.equal(cfg.rooms.find((x) => x.id === room.id).photo, "");
+      assert.equal((await call(app, "GET", url)).status, 404);
+      app.stop();
+    });
+
     it("สตรีมอัปเดตสดปิดตามรอบพร้อมแจ้ง bye และคืนโควตาการเชื่อมต่อ", async () => {
       const { app } = boot(fakeSql(), { sseMaxMs: 200, ssePerIp: 1 });
       const read = async () => {
