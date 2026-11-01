@@ -818,13 +818,31 @@
   function setFeedback(opts) {
     Object.assign(fx, opts);
   }
-  function haptic(ms = 8) {
-    if (fx.haptic && navigator.vibrate && motionLevel() !== "off") {
-      try {
+  // Android: Vibration API (สั้นกว่า ~15ms มอเตอร์หลายรุ่นหมุนไม่ทัน จึงไม่รู้สึก)
+  // iPhone: Safari ไม่มี Vibration API แต่ iOS 18+ สั่นเองเมื่อสลับ <input type="checkbox" switch>
+  // จึงสลับสวิตช์ที่ซ่อนไว้แทน (ต้องเรียกระหว่างการแตะ) · iPad ไม่มีมอเตอร์สั่น สั่นไม่ได้ทุกกรณี
+  let iosSwitch = null;
+  function haptic(ms = 15) {
+    if (!fx.haptic || motionLevel() === "off") return;
+    try {
+      if (navigator.vibrate) {
         navigator.vibrate(ms);
-      } catch {
-        /* ignore */
+        return;
       }
+      if (!matchMedia("(pointer: coarse)").matches) return;
+      if (!iosSwitch) {
+        iosSwitch = document.createElement("label");
+        iosSwitch.setAttribute("aria-hidden", "true");
+        iosSwitch.style.cssText =
+          "position:fixed;left:-100px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none";
+        iosSwitch.innerHTML = '<input type="checkbox" switch tabindex="-1" />';
+        // คลิกจำลองนี้ต้องไม่ไปถึงตัวจัดการอื่น (เช่น ปิดเมนูเมื่อคลิกนอกเมนู)
+        iosSwitch.addEventListener("click", (e) => e.stopPropagation());
+        document.body.appendChild(iosSwitch);
+      }
+      iosSwitch.click();
+    } catch {
+      /* ignore */
     }
   }
   function tick(freq = 1700, dur = 0.035, vol = 0.05) {
@@ -875,11 +893,17 @@
         );
         if (!el || el.disabled || el.classList.contains("is-disabled")) return;
         if (motionLevel() === "full") spawnRipple(el, e);
-        haptic();
         if (fx.sound) tick();
       },
       { passive: true },
     );
+    // สั่นตอน click (ไม่ใช่ pointerdown): เบราว์เซอร์มือถือนับว่าเป็นการแตะจริง จึงยอมให้สั่น
+    document.addEventListener("click", (e) => {
+      const el = e.target.closest(
+        ".btn, .chip, .ripple-host, .seg button, .nav-link, .tab-link",
+      );
+      if (el && !el.disabled && !el.classList.contains("is-disabled")) haptic();
+    });
     initTooltips();
   }
 
@@ -9351,7 +9375,7 @@
           {
             k: "hapticFeedback",
             label: "สั่นเบา ๆ เมื่อกดปุ่ม",
-            hint: "รองรับมือถือ Android",
+            hint: "Android ทุกรุ่นที่เปิดการสั่นไว้ และ iPhone ที่ใช้ iOS 18 ขึ้นไป (iPad ไม่มีมอเตอร์สั่น)",
             type: "switch",
           },
           {
