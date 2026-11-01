@@ -242,6 +242,46 @@ describe(
       app.stop();
     });
 
+    it("รายงาน KPI: นับวันสำรองข้อมูลที่ขาด การจอง และเรื่องร้องเรียนตามช่วงวันที่", async () => {
+      const { app, store } = boot(fakeSql());
+      let r = await call(app, "POST", "/api/admin/login", { username: "admin", password: "first-run-pass-77" });
+      let cookie = r.headers.get("set-cookie").split(";")[0];
+      await call(app, "POST", "/api/admin/password", { current: "first-run-pass-77", next: ADMIN_PW }, { cookie });
+      r = await call(app, "POST", "/api/admin/login", { username: "admin", password: ADMIN_PW });
+      cookie = r.headers.get("set-cookie").split(";")[0];
+      const today = bkkNow().date;
+      const from = addDays(today, -4);
+      // สำรองครบ 3 จาก 5 วัน: 2 วันในอดีต + วันนี้จากงานประจำของระบบ (เรียกซ้ำต้องไม่จดซ้ำ)
+      store.db.backupDays.push(addDays(today, -4), addDays(today, -2));
+      app.housekeeping();
+      app.housekeeping();
+      assert.deepEqual(store.db.backupDays.slice(-2), [addDays(today, -2), today]);
+      const day = workday(3);
+      await call(app, "POST", "/api/bookings", {
+        roomId: "small-2", date: day, start: "09:00", end: "11:00", title: "KPI",
+        organizer: "สมใจ", department: "ฝ่ายปกครอง", phone: "0812345678", attendees: 6,
+      });
+      await call(app, "POST", "/api/feedback", { type: "bug", message: "ทดสอบรายงาน" });
+      const kpi = async (f, t) => (await call(app, "GET", `/api/admin/kpi?from=${f}&to=${t}`, undefined, { cookie })).json();
+      let d = await kpi(from, addDays(today, 10));
+      const k = Object.fromEntries(d.kpis.map((x) => [x.id, x]));
+      assert.equal(k.backup.value, 60, JSON.stringify(k.backup));
+      assert.equal(k.backup.pass, false);
+      assert.match(k.backup.note, /ไม่พบการสำรอง 2 วัน/);
+      assert.equal(d.usage.bookings, 1);
+      assert.equal(d.usage.hours, 2);
+      assert.equal(d.usage.attendees, 6);
+      assert.equal(d.feedback.total, 1);
+      assert.equal(k.feedbackDone.value, 0);
+      assert.equal(k.approvalHours.value, null, "จองแบบยืนยันทันที ไม่นับเวลาอนุมัติ");
+      // ช่วงที่ยังไม่มาถึงทั้งหมด: ไม่มีวันให้ตรวจการสำรอง
+      d = await kpi(addDays(today, 20), addDays(today, 25));
+      assert.equal(d.kpis.find((x) => x.id === "backup").pass, null);
+      assert.equal((await call(app, "GET", `/api/admin/kpi?from=${today}&to=${from}`, undefined, { cookie })).status, 400);
+      assert.equal((await call(app, "GET", `/api/admin/kpi?from=${from}&to=${today}`)).status, 401);
+      app.stop();
+    });
+
     it("สตรีมอัปเดตสดปิดตามรอบพร้อมแจ้ง bye และคืนโควตาการเชื่อมต่อ", async () => {
       const { app } = boot(fakeSql(), { sseMaxMs: 200, ssePerIp: 1 });
       const read = async () => {
