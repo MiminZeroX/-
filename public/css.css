@@ -1910,8 +1910,10 @@ table.table {
     margin-left: 0;
   }
   .clock-chip {
-    display: inline-block;
-  }
+     /* none ปิดนาฬิกาบนขวา
+        inline-block คือเปิด*/
+    display: none; 
+  } 
 }
 
 /* ---------- แถบแท็บด้านล่าง (มือถือ/แท็บเล็ต) ---------- */
