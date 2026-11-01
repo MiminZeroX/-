@@ -160,6 +160,9 @@ class Store {
     db.feedback = (Array.isArray(raw.feedback) ? raw.feedback : []).filter(
       (f) => f && typeof f.id === "string" && typeof f.message === "string",
     );
+    db.backupDays = (Array.isArray(raw.backupDays) ? raw.backupDays : []).filter(
+      (d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d),
+    );
     db.counters =
       raw.counters && typeof raw.counters === "object" ? raw.counters : {};
     return db;

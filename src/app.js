@@ -136,6 +136,16 @@ const MAX_FEEDBACK = 2000;
 // รูปห้อง: ไม่รับ SVG (อาจฝังสคริปต์ได้) ย่อขนาดจากหน้าแอดมินก่อนส่ง
 const PHOTO_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 const MAX_PHOTO = 700000;
+const MAX_BACKUP_DAYS = 1200;
+// เป้าหมายตัวชี้วัด (KPI) ในรายงานผู้บริหาร — ปรับตัวเลขได้ที่นี่
+const KPI_TARGETS = {
+  backup: 100, // % ของวันที่มีการสำรองข้อมูลอัตโนมัติ
+  utilization: 30, // % ชั่วโมงที่ห้องถูกใช้ เทียบกับเวลาเปิดให้จองในวันทำการ
+  cancelRate: 20, // % ยกเลิก/ไม่อนุมัติ ไม่เกิน
+  approvalHours: 24, // ชั่วโมงเฉลี่ยในการอนุมัติ ไม่เกิน
+  checkinRate: 80, // % การประชุมที่เช็คอินจริง
+  feedbackDone: 80, // % เรื่องร้องเรียน/แจ้งปัญหาที่ดำเนินการแล้ว
+};
 
 function createApp(opts = {}) {
   // ไม่มี __dirname บน Cloudflare Workers (ที่นั่นส่ง opts.store และ publicDir: false มาเสมอ)
@@ -1616,6 +1626,203 @@ function createApp(opts = {}) {
     { auth: "staff" },
   );
 
+  // ---------- admin: รายงานตัวชี้วัด (KPI) ----------
+  route(
+    "GET",
+    "/api/admin/kpi",
+    (ctx) => {
+      const s = S();
+      const today = bkkNow().date;
+      const from = ctx.query.get("from");
+      const to = ctx.query.get("to");
+      if (!isDate(from) || !isDate(to) || to < from)
+        throw new HttpError(400, "ช่วงวันที่ไม่ถูกต้อง");
+      if (diffDays(from, to) > 400)
+        throw new HttpError(400, "ช่วงวันที่กว้างเกินไป (ไม่เกิน 1 ปี)");
+      const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : null);
+      const kpi = (id, label, value, unit, target, better, note = "") => ({
+        id,
+        label,
+        value,
+        unit,
+        target,
+        better, // "high" = ยิ่งมากยิ่งดี, "low" = ยิ่งน้อยยิ่งดี
+        pass:
+          value === null
+            ? null
+            : better === "high"
+              ? value >= target
+              : value <= target,
+        note,
+      });
+      const fromMs = toEpoch(from, "00:00");
+      const toMs = toEpoch(addDays(to, 1), "00:00");
+
+      // 1) การสำรองข้อมูลอัตโนมัติ: นับวันตั้งแต่ from ถึงวันนี้ (วันที่ยังไม่มาถึงไม่นับ)
+      const backed = new Set(store.db.backupDays);
+      for (const f of store.listBackups()) {
+        const m = /^db-(\d{4}-\d{2}-\d{2})\.json$/.exec(f.name);
+        if (m) backed.add(m[1]);
+      }
+      const checkDays = [];
+      for (let d = from; d <= to && d <= today; d = addDays(d, 1))
+        checkDays.push(d);
+      const missing = checkDays.filter((d) => !backed.has(d));
+
+      // 2) การใช้งานห้อง
+      const meetings = store.db.bookings.filter(
+        (b) => b.kind !== "block" && b.date >= from && b.date <= to,
+      );
+      const active = meetings.filter((b) => ACTIVE.has(b.status));
+      const minutesOf = (b) => Math.max(0, toMin(b.end) - toMin(b.start));
+      const minutes = active.reduce((sum, b) => sum + minutesOf(b), 0);
+      let workDays = 0;
+      for (let d = from; d <= to; d = addDays(d, 1)) {
+        const wd = weekdayOf(d);
+        if (
+          (s.allowWeekends || (wd !== 0 && wd !== 6)) &&
+          (s.allowHolidays || !holidayOn(d))
+        )
+          workDays++;
+      }
+      const rooms = sortedRooms().filter((r) => !r.archived);
+      const openMin = Math.max(0, toMin(s.closeTime) - toMin(s.openTime));
+      const capacityMin = workDays * openMin * rooms.length;
+      const perRoom = rooms.map((r) => {
+        const list = active.filter((b) => b.roomId === r.id);
+        const m = list.reduce((sum, b) => sum + minutesOf(b), 0);
+        return {
+          name: `${r.name} ${r.floor}`,
+          count: list.length,
+          hours: Math.round(m / 6) / 10,
+          utilization: pct(m, workDays * openMin),
+        };
+      });
+      const cancelled = meetings.filter(
+        (b) => b.status === "cancelled" || b.status === "rejected",
+      );
+      const manual = meetings.filter(
+        (b) =>
+          b.approvedAt &&
+          b.createdBy === "public" &&
+          b.approvedBy !== "อัตโนมัติ",
+      );
+      const approvalHours = manual.length
+        ? Math.round(
+            (manual.reduce((sum, b) => sum + (b.approvedAt - b.createdAt), 0) /
+              manual.length /
+              3600000) *
+              10,
+          ) / 10
+        : null;
+      const ended = active.filter((b) => b.status === "approved" && hasEnded(b));
+      const checked = ended.filter((b) => b.checkedIn).length;
+      const released = meetings.filter((b) => b.released).length;
+      const depts = new Set(active.map((b) => b.department).filter(Boolean));
+
+      // 3) เรื่องร้องเรียน / แจ้งปัญหา
+      const fb = store.db.feedback.filter((f) => f.ts >= fromMs && f.ts < toMs);
+      const fbDone = fb.filter((f) => f.status === "done").length;
+      const fbTypes = Object.fromEntries(
+        Object.entries(FEEDBACK_TYPES).map(([k, label]) => [
+          label,
+          fb.filter((f) => f.type === k).length,
+        ]),
+      );
+
+      // 4) ความปลอดภัย (จากบันทึกกิจกรรม)
+      const logs = store.logs.filter((l) => l.ts >= fromMs && l.ts < toMs);
+      const count = (action) => logs.filter((l) => l.action === action).length;
+
+      return {
+        from,
+        to,
+        generatedAt: Date.now(),
+        kpis: [
+          kpi(
+            "backup",
+            "การสำรองข้อมูลอัตโนมัติครบทุกวัน",
+            pct(checkDays.length - missing.length, checkDays.length),
+            "%",
+            KPI_TARGETS.backup,
+            "high",
+            missing.length
+              ? `ไม่พบการสำรอง ${missing.length} วัน: ${missing.slice(0, 31).map(thaiDate).join(", ")}${missing.length > 31 ? " …" : ""}`
+              : `สำรองครบ ${checkDays.length} วัน`,
+          ),
+          kpi(
+            "utilization",
+            "อัตราการใช้ห้องประชุม",
+            pct(minutes, capacityMin),
+            "%",
+            KPI_TARGETS.utilization,
+            "high",
+            `ใช้ ${Math.round(minutes / 6) / 10} ชม. จาก ${Math.round(capacityMin / 6) / 10} ชม. ที่เปิดให้จอง (${workDays} วันทำการ × ${rooms.length} ห้อง)`,
+          ),
+          kpi(
+            "cancelRate",
+            "อัตราการยกเลิก/ไม่อนุมัติ",
+            pct(cancelled.length, meetings.length),
+            "%",
+            KPI_TARGETS.cancelRate,
+            "low",
+            `${cancelled.length} จาก ${meetings.length} รายการ`,
+          ),
+          kpi(
+            "approvalHours",
+            "ระยะเวลาอนุมัติเฉลี่ย",
+            approvalHours,
+            "ชม.",
+            KPI_TARGETS.approvalHours,
+            "low",
+            manual.length
+              ? `จากคำขอที่ต้องอนุมัติ ${manual.length} รายการ`
+              : "ไม่มีคำขอที่ต้องอนุมัติในช่วงนี้",
+          ),
+          kpi(
+            "checkinRate",
+            "อัตราการเช็คอินเข้าใช้ห้องจริง",
+            s.checkinEnabled ? pct(checked, ended.length) : null,
+            "%",
+            KPI_TARGETS.checkinRate,
+            "high",
+            s.checkinEnabled
+              ? `เช็คอิน ${checked} จาก ${ended.length} การประชุมที่จบแล้ว · คืนห้องอัตโนมัติ ${released} ครั้ง`
+              : "ปิดการเช็คอินอยู่ในการตั้งค่า",
+          ),
+          kpi(
+            "feedbackDone",
+            "เรื่องร้องเรียน/แจ้งปัญหาที่ดำเนินการแล้ว",
+            pct(fbDone, fb.length),
+            "%",
+            KPI_TARGETS.feedbackDone,
+            "high",
+            fb.length
+              ? `${fbDone} จาก ${fb.length} เรื่อง`
+              : "ไม่มีเรื่องร้องเรียนในช่วงนี้",
+          ),
+        ],
+        usage: {
+          bookings: active.length,
+          hours: Math.round(minutes / 6) / 10,
+          attendees: active.reduce((sum, b) => sum + (b.attendees || 0), 0),
+          departments: depts.size,
+          cancelled: cancelled.length,
+          released,
+          perRoom,
+        },
+        feedback: { total: fb.length, done: fbDone, byType: fbTypes },
+        security: {
+          logins: count("admin.login"),
+          loginFails: count("admin.login_fail") + count("admin.reauth_fail"),
+          events: logs.filter((l) => l.level === "security").length,
+          manualBackups: count("system.backup"),
+        },
+      };
+    },
+    { auth: "staff" },
+  );
+
   // ---------- admin: bookings ----------
   function filterAdminBookings(q) {
     const from = q.get("from");
@@ -2999,6 +3206,14 @@ function createApp(opts = {}) {
   function housekeeping() {
     try {
       store.dailyBackup();
+      // จดวันที่สำรองสำเร็จไว้ในฐานข้อมูล (ไฟล์สำรองถูกลบตาม backupKeepDays แต่รายงาน KPI ต้องย้อนดูได้)
+      const day = bkkNow().date;
+      const days = store.db.backupDays;
+      if (days.at(-1) !== day) {
+        days.push(day);
+        if (days.length > MAX_BACKUP_DAYS) days.splice(0, days.length - MAX_BACKUP_DAYS);
+        store.saveDb();
+      }
     } catch (err) {
       console.error("[backup]", err.message);
     }
