@@ -6261,6 +6261,11 @@ label:has(> input.sr-only:focus-visible),
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
+/* แถบวันที่เลื่อนได้ (overflow) ตัดส่วนที่อยู่นอกปุ่มทิ้ง: วาดกรอบโฟกัสไว้ด้านในปุ่มแทน */
+.date-strip .dchip:focus-visible,
+.date-strip .dchip.pick:has(:focus-visible) {
+  outline-offset: -4px;
+}
 
 /* หัวข้อการจองในตารางผู้ดูแลเป็นปุ่ม (เปิดรายละเอียดด้วยคีย์บอร์ดได้) */
 .t-open {
