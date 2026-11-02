@@ -80,24 +80,37 @@ function relayStream(request, res) {
   return new Response(body, res);
 }
 
+// บอกเบราว์เซอร์ให้เปิดเว็บนี้ด้วย HTTPS เสมอ 1 ปี (กันถูกดักแก้ระหว่างทางผ่าน http://)
+// ไม่ใส่ includeSubDomains เพราะโดเมนหน่วยงานอาจมีเว็บย่อยอื่นที่ยังไม่มี HTTPS
+function withHsts(res) {
+  const out = new Response(res.body, res);
+  out.headers.set("Strict-Transport-Security", "max-age=31536000");
+  return out;
+}
+
 // ---------------------------------------------------------------- Worker หลัก
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    if (url.pathname.startsWith("/api/")) {
-      // IP จริงของผู้ใช้จาก Cloudflare (ผู้ใช้ปลอม header นี้ไม่ได้ เพราะเขียนทับทุกครั้ง)
-      const headers = new Headers(request.headers);
-      headers.set(
-        "x-br-client-ip",
-        request.headers.get("cf-connecting-ip") || "",
-      );
-      const app = env.APP.get(env.APP.idFromName("main"));
-      const res = await app.fetch(new Request(request, { headers }));
-      return url.pathname === "/api/events" ? relayStream(request, res) : res;
-    }
-    return serveAsset(request, env, url);
+    const res = await route(request, env);
+    return new URL(request.url).protocol === "https:" ? withHsts(res) : res;
   },
 };
+
+async function route(request, env) {
+  const url = new URL(request.url);
+  if (url.pathname.startsWith("/api/")) {
+    // IP จริงของผู้ใช้จาก Cloudflare (ผู้ใช้ปลอม header นี้ไม่ได้ เพราะเขียนทับทุกครั้ง)
+    const headers = new Headers(request.headers);
+    headers.set(
+      "x-br-client-ip",
+      request.headers.get("cf-connecting-ip") || "",
+    );
+    const app = env.APP.get(env.APP.idFromName("main"));
+    const res = await app.fetch(new Request(request, { headers }));
+    return url.pathname === "/api/events" ? relayStream(request, res) : res;
+  }
+  return serveAsset(request, env, url);
+}
 
 // ---------------------------------------------------------------- ระบบจอง (Durable Object)
 // ช่วงเวลาทำการ (ไทย 07:00–20:00) ปลุกทุก 1 นาทีเพื่อคืนห้องอัตโนมัติ นอกเวลาปลุกทุกชั่วโมง (สำรองข้อมูล/ล้าง log)

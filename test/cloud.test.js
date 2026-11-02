@@ -203,6 +203,12 @@ describe(
       assert.equal(f.status, "new");
       r = await call(app, "PATCH", `/api/admin/feedback/${f.id}`, { status: "done" }, { cookie });
       assert.equal((await r.json()).item.status, "done");
+      // ลบถาวรได้ (ข้อมูลส่วนบุคคล) และลบซ้ำได้ 404
+      r = await call(app, "DELETE", `/api/admin/feedback/${f.id}`, undefined, { cookie });
+      assert.equal(r.status, 200);
+      r = await call(app, "DELETE", `/api/admin/feedback/${f.id}`, undefined, { cookie });
+      assert.equal(r.status, 404);
+      assert.equal((await (await call(app, "GET", "/api/admin/feedback", undefined, { cookie })).json()).items.length, 0);
       app.stop();
 
       // จำกัด 10 เรื่องต่อชั่วโมงต่อ IP

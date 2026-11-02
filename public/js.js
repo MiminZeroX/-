@@ -4096,8 +4096,7 @@
                 rows="3"
                 maxlength="1000"
                 placeholder="เช่น ต้องการจัดโต๊ะรูปตัว U, มีผู้เข้าร่วมจากภายนอก"
-              >
-    ${f.note}</textarea
+              >${f.note}</textarea
               >
             </label>
             ${s.enableRecurring && !f.editing
@@ -7079,8 +7078,7 @@
             </div>
             <label class="field full mt" data-f="note"
               ><span>หมายเหตุ (ผู้จองเห็น)</span
-              ><textarea class="textarea" name="note" rows="2" maxlength="1000">
-    ${b.note}</textarea
+              ><textarea class="textarea" name="note" rows="2" maxlength="1000">${b.note}</textarea
               >
             </label>
             <label class="field full" data-f="adminNote"
@@ -7090,8 +7088,7 @@
                 name="adminNote"
                 rows="2"
                 maxlength="500"
-              >
-    ${b.adminNote || ""}</textarea
+              >${b.adminNote || ""}</textarea
               >
             </label>
             ${!editing && s.enableRecurring
@@ -8621,8 +8618,7 @@
               name="description"
               rows="2"
               maxlength="300"
-            >
-    ${d.description}</textarea
+            >${d.description}</textarea
             >
           </label>
           <div class="field full" data-f="color">
@@ -9493,8 +9489,7 @@
               class="textarea"
               data-k="${fd.k}"
               rows="${fd.rows || 3}"
-            >
-    ${v}</textarea
+            >${v}</textarea
             >`;
           case "number":
             return html`<input
@@ -11406,6 +11401,16 @@
                         ? html`${icon("refresh")} เปิดเรื่องใหม่`
                         : html`${icon("check")} ทำเครื่องหมายว่าดำเนินการแล้ว`}
                     </button>
+                    ${isAdmin()
+                      ? html`<button
+                          class="btn btn-ghost btn-sm"
+                          data-del="${f.id}"
+                          data-tip="ลบเรื่องนี้ถาวร"
+                          aria-label="ลบเรื่องนี้ถาวร"
+                        >
+                          ${icon("trash", "i-sm")}
+                        </button>`
+                      : ""}
                   </div>
                   <p style="white-space:pre-wrap;margin:10px 0 6px">${f.message}</p>
                   ${f.name || f.contact
@@ -11437,6 +11442,30 @@
         render();
       };
       listEl.onclick = async (e) => {
+        const del = e.target.closest("button[data-del]");
+        if (del) {
+          const ok = await confirmDialog({
+            title: "ลบเรื่องนี้ถาวร?",
+            cancelText: "เก็บไว้",
+            message:
+              "ข้อความ ชื่อ และช่องทางติดต่อของผู้แจ้งจะถูกลบและกู้คืนไม่ได้ (ไฟล์สำรองที่ทำไว้ก่อนหน้ายังมีเรื่องนี้อยู่)",
+            confirmText: "ลบถาวร",
+            danger: true,
+            iconName: "trash",
+          });
+          if (!ok) return;
+          try {
+            await api(`/api/admin/feedback/${encodeURIComponent(del.dataset.del)}`, {
+              method: "DELETE",
+            });
+            data.items = data.items.filter((x) => x.id !== del.dataset.del);
+            toast("ลบเรื่องแล้ว", "success");
+            render();
+          } catch (err) {
+            toastError(err);
+          }
+          return;
+        }
         const b = e.target.closest("button[data-id]");
         if (!b) return;
         const f = data.items.find((x) => x.id === b.dataset.id);

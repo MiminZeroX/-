@@ -2112,6 +2112,27 @@ function createApp(opts = {}) {
     { auth: "staff" },
   );
 
+  // ลบเรื่องถาวร (มีชื่อ/เบอร์ผู้แจ้ง — ลบเมื่อพ้นระยะเก็บข้อมูลส่วนบุคคล หรือเจ้าของข้อมูลขอให้ลบ)
+  route(
+    "DELETE",
+    "/api/admin/feedback/:id",
+    (ctx) => {
+      const list = store.db.feedback;
+      const i = list.findIndex((x) => x.id === ctx.params.id);
+      if (i < 0) throw new HttpError(404, "ไม่พบเรื่องนี้");
+      const [f] = list.splice(i, 1);
+      store.saveDb();
+      log(
+        ctx,
+        "feedback.delete",
+        `ลบเรื่อง${FEEDBACK_TYPES[f.type] || ""}ถาวร: ${cleanStr(f.message, 80)}`,
+        { level: "warn" },
+      );
+      return { ok: true };
+    },
+    { auth: "admin" },
+  );
+
   // ---------- admin: settings ----------
   route("GET", "/api/admin/settings", () => ({ settings: S() }), {
     auth: "admin",

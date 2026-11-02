@@ -13,6 +13,9 @@ const { bkkNow, addDays, weekdayOf } = require("../src/time");
 // รหัสผ่านเริ่มต้นสำหรับทดสอบ (ระบบจริงสุ่มให้ทุกการติดตั้ง)
 const INITIAL_PW = "first-run-pass-77";
 const ADMIN_PW = "Bang-Rak-Room-7731";
+// macOS ให้ใช้เฉพาะ 127.0.0.1 บน loopback (Linux/Windows ใช้ได้ทั้ง 127.x.x.x) — ข้อที่ต้องจำลองหลาย IP จึงข้ามบน macOS
+const NO_MULTI_IP =
+  process.platform === "darwin" && "macOS จำลองหลาย IP ไม่ได้ — ข้อนี้ทดสอบบน Linux/Windows";
 
 function startServer(opts = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "br-test-"));
@@ -962,7 +965,7 @@ describe("ความปลอดภัย: ผลจากการตรว�
     assert.match(r.text, /connection: close/i);
   });
 
-  it("คุกกี้ผู้ดูแลที่ถูกนำไปใช้จากเครื่องอื่นใช้ไม่ได้", async () => {
+  it("คุกกี้ผู้ดูแลที่ถูกนำไปใช้จากเครื่องอื่นใช้ไม่ได้", { skip: NO_MULTI_IP }, async () => {
     const login = await callFrom(
       t.base,
       "127.0.0.21",
@@ -1003,7 +1006,7 @@ describe("ความปลอดภัย: ผลจากการตรว�
     assert.equal(again.status, 401, "เซสชันที่ถูกขโมยต้องถูกยกเลิกทั้งหมด");
   });
 
-  it("จำกัดการเดารหัสต่อบัญชี แม้เปลี่ยน IP และเข้าสู่ระบบบัญชีอื่นสำเร็จก็ล้างตัวนับไม่ได้", async () => {
+  it("จำกัดการเดารหัสต่อบัญชี แม้เปลี่ยน IP และเข้าสู่ระบบบัญชีอื่นสำเร็จก็ล้างตัวนับไม่ได้", { skip: NO_MULTI_IP }, async () => {
     for (let i = 0; i < 12; i++) {
       const r = await callFrom(
         t.base,
@@ -1135,7 +1138,7 @@ describe("ความปลอดภัย: ผลจากการตรว�
     }
   });
 
-  it("รหัสการจองเดาลำดับไม่ได้ และเดาเบอร์ซ้ำ ๆ จะถูกพักการค้นหา", async () => {
+  it("รหัสการจองเดาลำดับไม่ได้ และเดาเบอร์ซ้ำ ๆ จะถูกพักการค้นหา", { skip: NO_MULTI_IP }, async () => {
     const a = await t.call(
       "POST",
       "/api/bookings",

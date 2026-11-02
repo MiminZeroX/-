@@ -9,3 +9,7 @@ dist/
 
 # Cloudflare wrangler (ทดสอบในเครื่อง)
 .wrangler/
+
+# โปรแกรมตรวจสอบระบบ: รายงานและที่อยู่เว็บที่จำไว้ (มีที่อยู่ระบบจริง)
+checker/reports/
+checker/settings.local.json
