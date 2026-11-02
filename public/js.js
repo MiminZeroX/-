@@ -6605,8 +6605,8 @@
         err("current", "กรอกรหัสผ่านที่ใช้อยู่ตอนนี้");
         return false;
       }
-      if (form.next.value.length < 12) {
-        err("next", "ต้องมีอย่างน้อย 12 ตัวอักษร");
+      if (form.next.value.length < 5) {
+        err("next", "ต้องมีอย่างน้อย 5 ตัวอักษร");
         return false;
       }
       if (form.next.value !== form.confirm.value) {
