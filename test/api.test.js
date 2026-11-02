@@ -525,6 +525,9 @@ describe("ความปลอดภัยการเข้าสู่ระ�
         password: `wrong${i}`,
       });
     assert.equal(last.status, 429);
+    // รอนานสุด 1 นาที (PASSWORD_LOCK.LOCK_MS)
+    const wait = Number(/ลองใหม่ในอีก (\d+) วินาที/.exec(last.data.error)?.[1]);
+    assert.ok(wait > 0 && wait <= 60, last.data.error);
     const right = await t.call("POST", "/api/admin/login", {
       username: "admin",
       password: INITIAL_PW,

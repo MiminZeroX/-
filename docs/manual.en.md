@@ -659,7 +659,7 @@ Use these if the organisation prefers not to keep data on Cloudflare. Data is th
 - Downloaded backups contain no password hashes · the latest 30 days of logs cannot be deleted · no passwords in Cloudflare logs
 - Room photos accept only JPG/PNG/WEBP within a size limit · the feedback form is rate-limited and always shown as plain text
 - Penetration-tested and reviewed against the OWASP Top 10, with 57 automated tests
-- **System checker** (`checker/`): double-click `check-windows.bat` (Windows) or `check-mac.command` (macOS, needs Node.js 18+) to test the live site’s functions and 20 security guards without changing data; it writes an HTML report with fixes for anything that fails. `--deep` also proves the sign-in lockout (it locks the running computer’s IP for about 15 minutes). Use it only on systems you own or are authorised to test
+- **System checker** (`checker/`): double-click `check-windows.bat` (Windows) or `check-mac.command` (macOS, needs Node.js 18+) to test the live site’s functions and 20 security guards without changing data; it writes an HTML report with fixes for anything that fails. `--deep` also proves the sign-in lockout (it locks the running computer’s IP out of sign-in for about a minute). Use it only on systems you own or are authorised to test
 
 **Optional hardening:** use **Cloudflare Access** (Zero Trust › Access › Applications) to allow only organisation e-mail addresses to open `/admin*` and `/api/admin/*` (free for up to 50 users).
 

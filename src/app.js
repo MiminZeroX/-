@@ -137,6 +137,14 @@ const MAX_FEEDBACK = 2000;
 const PHOTO_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 const MAX_PHOTO = 700000;
 const MAX_BACKUP_DAYS = 1200;
+// ใส่รหัสผ่านผิดหลายครั้ง (หน้าเข้าสู่ระบบ และการยืนยันรหัสก่อนทำรายการสำคัญ) — แก้ตัวเลขได้ที่นี่
+// ใส่ผิดเกินจำนวนครั้งภายในช่วงเวลานี้ ต้องรอจนครบช่วงเวลา (นานสุด = LOCK_MS)
+const PASSWORD_LOCK = {
+  LOCK_MS: 60 * 1000, // ระยะเวลาพัก: 60 * 1000 = 1 นาที (เช่น 5 นาที = 5 * 60 * 1000)
+  PER_IP: 8, // ผิดได้กี่ครั้งต่อเครื่อง/เครือข่าย (IP) ก่อนถูกพัก
+  PER_USER: 12, // ผิดได้กี่ครั้งต่อบัญชี (รวมทุกเครื่อง) ก่อนถูกพัก
+  REAUTH: 5, // ยืนยันรหัสผิดกี่ครั้ง จึงออกจากระบบให้ (กันคนอื่นมาใช้เครื่องที่ล็อกอินค้างไว้)
+};
 // เป้าหมายตัวชี้วัด (KPI) ในรายงานผู้บริหาร — ปรับตัวเลขได้ที่นี่
 const KPI_TARGETS = {
   backup: 100, // % ของวันที่มีการสำรองข้อมูลอัตโนมัติ
@@ -200,10 +208,10 @@ function createApp(opts = {}) {
     lookup: new RateLimiter(20, 3600000),
     // ค้นหาด้วยรหัสเดียวกันแต่เบอร์ผิดซ้ำ ๆ = เดาเบอร์ → ล็อกรหัสนั้น
     lookupCode: new RateLimiter(5, 3600000),
-    login: new RateLimiter(8, 15 * 60000),
+    login: new RateLimiter(PASSWORD_LOCK.PER_IP, PASSWORD_LOCK.LOCK_MS),
     // จำกัดต่อบัญชีด้วย (กันการเดารหัสจากหลายเครื่อง/หลาย IP)
-    loginUser: new RateLimiter(12, 15 * 60000),
-    password: new RateLimiter(5, 15 * 60000),
+    loginUser: new RateLimiter(PASSWORD_LOCK.PER_USER, PASSWORD_LOCK.LOCK_MS),
+    password: new RateLimiter(PASSWORD_LOCK.REAUTH, PASSWORD_LOCK.LOCK_MS),
     my: new RateLimiter(240, 10 * 60000),
     feedback: new RateLimiter(10, 3600000),
   };
@@ -1309,7 +1317,7 @@ function createApp(opts = {}) {
       const wait = Math.max(rl.retryAfter || 0, rlUser.retryAfter || 0);
       throw new HttpError(
         429,
-        `เข้าสู่ระบบผิดหลายครั้ง ระบบพักการเข้าสู่ระบบไว้ชั่วคราว ลองใหม่ในอีก ${Math.ceil(wait / 60)} นาที`,
+        `เข้าสู่ระบบผิดหลายครั้ง ระบบพักการเข้าสู่ระบบไว้ชั่วคราว ลองใหม่ในอีก ${wait < 60 ? `${wait} วินาที` : `${Math.ceil(wait / 60)} นาที`}`,
       );
     }
     if (hashing >= MAX_HASHING)
@@ -1415,7 +1423,7 @@ function createApp(opts = {}) {
   );
 
   // ยืนยันตัวตนด้วยรหัสผ่านของผู้ที่กำลังใช้งาน (ก่อนทำรายการสำคัญ)
-  // ผิดเกิน 5 ครั้งใน 15 นาที → ออกจากระบบทุกอุปกรณ์ของบัญชีนี้
+  // ผิดเกิน PASSWORD_LOCK.REAUTH ครั้งภายใน PASSWORD_LOCK.LOCK_MS → ออกจากระบบทุกอุปกรณ์ของบัญชีนี้
   async function reauth(ctx, password, field) {
     const key = ctx.admin.id;
     const rl = limits.password.check(key);
