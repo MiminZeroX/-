@@ -904,6 +904,18 @@
       );
       if (el && !el.disabled && !el.classList.contains("is-disabled")) haptic();
     });
+    // ช่องวันที่ที่ซ่อนอยู่ใต้ปุ่ม ("วันอื่น", หัวปฏิทิน): บนคอมพิวเตอร์คลิกแล้วเบราว์เซอร์แค่โฟกัส
+    // ไม่เปิดปฏิทิน (ต้องคลิกไอคอนเล็ก ๆ ที่ถูกซ่อน) จึงสั่งเปิดปฏิทินเอง
+    document.addEventListener("click", (e) => {
+      const input = e.target.closest?.(
+        '.dchip.pick input[type="date"], .cal-title input[type="date"]',
+      );
+      try {
+        input?.showPicker?.();
+      } catch {
+        /* เบราว์เซอร์เก่า: ใช้การเปิดแบบเดิม */
+      }
+    });
     initTooltips();
   }
 
