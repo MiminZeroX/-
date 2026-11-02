@@ -2141,10 +2141,16 @@
       );
       const next = items.find((b) => toMin(b.start) > now.minutes);
       if (!r.active) return { cls: "closed", label: "ปิดให้บริการ", cur, next };
+      // คำขอที่รออนุมัติ: เวลานี้ถูกกันไว้ให้ผู้ขอแล้ว (คนอื่นจองซ้อนไม่ได้) แต่ยังไม่ใช่การประชุมที่ยืนยัน
       if (cur)
         return {
-          cls: "busy",
-          label: cur.kind === "block" ? "ปิดใช้ห้อง" : "กำลังใช้งาน",
+          cls: cur.status === "pending" ? "pending" : "busy",
+          label:
+            cur.kind === "block"
+              ? "ปิดใช้ห้อง"
+              : cur.status === "pending"
+                ? "รออนุมัติ"
+                : "กำลังใช้งาน",
           cur,
           next,
         };
@@ -2199,8 +2205,12 @@
           Math.max(0, ((now.minutes - a) / (z - a)) * 100),
         );
         nowBlock = html`<span class="label"
-            >${st.cur.kind === "block" ? "ปิดใช้ห้อง" : "กำลังประชุม"} ·
-            เหลืออีก ${fmtDuration(z - now.minutes)}</span
+            >${st.cur.kind === "block"
+              ? "ปิดใช้ห้อง"
+              : st.cur.status === "pending"
+                ? "คำขอจองรอผู้ดูแลอนุมัติ"
+                : "กำลังประชุม"}
+            · เหลืออีก ${fmtDuration(z - now.minutes)}</span
           >
           <b>${titleOf(st.cur)}</b>
           <span class="sub"
@@ -11389,73 +11399,302 @@
     }
 
     async function secFeedback(el, ctx) {
-      let filter = "new";
+      const today = bkkNow().date;
+      const badgeOf = {
+        complaint: "badge-danger",
+        bug: "badge-warn",
+        idea: "badge-info",
+      };
+      const dayOf = (ts) =>
+        new Date(ts + TZ * 60000).toISOString().slice(0, 10);
+      const timeOf = (ts) => fmtDateTime(ts).split(" ").pop();
+      const start = A.feedbackNew > 0 ? "new" : "all";
+      const st = {
+        q: "",
+        type: "",
+        status: start,
+        from: "",
+        to: "",
+        sort: "new",
+        page: 1,
+        size: 25,
+        preset: start,
+      };
       let data = { items: [], types: {} };
+      const presets = [
+        ["new", "ยังไม่ดำเนินการ", { status: "new", from: "", to: "" }],
+        ["done", "ดำเนินการแล้ว", { status: "done", from: "", to: "" }],
+        ["today", "วันนี้", { status: "all", from: today, to: today }],
+        [
+          "week",
+          "สัปดาห์นี้",
+          {
+            status: "all",
+            from: startOfWeek(today),
+            to: addDays(startOfWeek(today), 6),
+          },
+        ],
+        [
+          "month",
+          "เดือนนี้",
+          { status: "all", from: `${today.slice(0, 7)}-01`, to: today },
+        ],
+        ["all", "ทั้งหมด", { status: "all", from: "", to: "" }],
+      ];
       setHTML(
         el,
         html`${sectionHead(
             "ร้องเรียน · แจ้งปัญหา · ข้อเสนอแนะ",
-            "เรื่องที่ผู้ใช้ส่งมาจากหน้า “ร้องเรียน · แจ้งปัญหา · เสนอแนะ” ท้ายทุกหน้า",
+            "เรื่องที่ผู้ใช้ส่งจากลิงก์ท้ายทุกหน้า — ค้นหา ติดตาม ปิดเรื่อง หรือส่งออกเป็นไฟล์ Excel (CSV)",
+            html`<button class="btn btn-soft" id="fb-csv">
+              ${icon("download")} ส่งออก CSV
+            </button>`,
           )}
-          <div class="seg" id="fb-seg">
-            <button data-value="new" aria-pressed="true">ยังไม่ดำเนินการ</button>
-            <button data-value="done">ดำเนินการแล้ว</button>
-            <button data-value="all">ทั้งหมด</button>
+          <div class="quick" id="fb-quick">
+            ${presets.map(
+              ([k, label]) =>
+                html`<button
+                  class="chip"
+                  data-p="${k}"
+                  aria-pressed="${st.preset === k}"
+                >
+                  ${label}${k === "new" ? html` <b id="q-new"></b>` : ""}
+                </button>`,
+            )}
           </div>
-          <div class="my-list" id="fb-list"></div>`,
+          <div class="toolbar card" style="padding:12px">
+            <label class="field grow"
+              ><span>ค้นหา</span>
+              <div class="input-icon">
+                ${icon("search")}<input
+                  class="input"
+                  id="fb-q"
+                  placeholder="ข้อความ ชื่อผู้แจ้ง เบอร์โทร/อีเมล"
+                /></div
+            ></label>
+            <label class="field"
+              ><span>ประเภท</span
+              ><select class="select" id="fb-type">
+                <option value="">ทุกประเภท</option>
+                <option value="complaint">ร้องเรียน</option>
+                <option value="bug">แจ้งปัญหาการใช้งาน</option>
+                <option value="idea">ข้อเสนอแนะ</option>
+              </select></label
+            >
+            <label class="field"
+              ><span>สถานะ</span
+              ><select class="select" id="fb-status">
+                <option value="all">ทั้งหมด</option>
+                <option value="new">ยังไม่ดำเนินการ</option>
+                <option value="done">ดำเนินการแล้ว</option>
+              </select></label
+            >
+            <label class="field"
+              ><span>ตั้งแต่</span
+              ><input class="input" type="date" id="fb-from"
+            /></label>
+            <label class="field"
+              ><span>ถึง</span><input class="input" type="date" id="fb-to"
+            /></label>
+            <label class="field"
+              ><span>เรียงตาม</span
+              ><select class="select" id="fb-sort">
+                <option value="new">วันที่ส่ง (ใหม่ไปเก่า)</option>
+                <option value="old">วันที่ส่ง (เก่าไปใหม่)</option>
+              </select></label
+            >
+          </div>
+          <div id="fb-list"></div>`,
       );
-      const seg = $("#fb-seg", el);
-      initSeg(seg);
-      const listEl = $("#fb-list", el);
-      const badge = { complaint: "badge-danger", bug: "badge-warn", idea: "badge-info" };
+      const f = {
+        q: $("#fb-q", el),
+        type: $("#fb-type", el),
+        status: $("#fb-status", el),
+        from: $("#fb-from", el),
+        to: $("#fb-to", el),
+        sort: $("#fb-sort", el),
+      };
+      const syncInputs = () => {
+        for (const k of Object.keys(f)) f[k].value = st[k];
+        $$("#fb-quick .chip", el).forEach((c) =>
+          c.setAttribute("aria-pressed", String(c.dataset.p === st.preset)),
+        );
+      };
+      const params = () => {
+        const p = new URLSearchParams();
+        for (const k of ["q", "type", "status", "from", "to"])
+          if (st[k]) p.set(k, st[k]);
+        return p;
+      };
+      const filtered = () => {
+        const q = st.q.trim().toLowerCase();
+        return data.items
+          .filter(
+            (x) =>
+              (!st.type || x.type === st.type) &&
+              (st.status === "all" || x.status === st.status) &&
+              (!st.from || dayOf(x.ts) >= st.from) &&
+              (!st.to || dayOf(x.ts) <= st.to) &&
+              (!q ||
+                `${x.message} ${x.name || ""} ${x.contact || ""}`
+                  .toLowerCase()
+                  .includes(q)),
+          )
+          .sort((a, b) => (st.sort === "old" ? a.ts - b.ts : b.ts - a.ts));
+      };
+      const typeBadge = (x) =>
+        html`<span class="badge ${badgeOf[x.type] || ""}"
+          >${data.types[x.type] || x.type}</span
+        >`;
+      const stateBadge = (x) =>
+        x.status === "done"
+          ? html`<span class="badge badge-approved"
+                >${icon("check-circle")}ดำเนินการแล้ว</span
+              >${x.doneAt
+                ? html`<div class="t-sub">
+                    ${x.doneBy ? `โดย ${x.doneBy} · ` : ""}${fmtDateTime(
+                      x.doneAt,
+                    )}
+                  </div>`
+                : ""}`
+          : html`<span class="badge badge-pending"
+              >${icon("hourglass")}ยังไม่ดำเนินการ</span
+            >`;
+      const actions = (x) =>
+        html`<div class="row-acts">
+          <button
+            class="btn btn-icon btn-sm ${x.status === "done"
+              ? "btn-soft"
+              : "btn-ok"}"
+            data-done="${x.id}"
+            data-tip="${x.status === "done"
+              ? "เปิดเรื่องใหม่"
+              : "ทำเครื่องหมายว่าดำเนินการแล้ว"}"
+            aria-label="${x.status === "done"
+              ? "เปิดเรื่องใหม่"
+              : "ทำเครื่องหมายว่าดำเนินการแล้ว"}"
+          >
+            ${icon(x.status === "done" ? "refresh" : "check", "i-sm")}
+          </button>
+          ${isAdmin()
+            ? html`<button
+                class="btn btn-ghost btn-icon btn-sm"
+                data-del="${x.id}"
+                data-tip="ลบเรื่องนี้ถาวร"
+                aria-label="ลบเรื่องนี้ถาวร"
+              >
+                ${icon("trash", "i-sm")}
+              </button>`
+            : ""}
+        </div>`;
 
-      function render() {
-        const items = data.items.filter(
-          (f) => filter === "all" || f.status === filter,
-        );
-        setHTML(
-          listEl,
-          items.length
-            ? items.map(
-                (f) => html`<article class="card" style="padding:16px 18px">
-                  <div class="row-wrap">
-                    <span class="badge ${badge[f.type] || ""}"
-                      >${data.types[f.type] || f.type}</span
-                    >
-                    ${f.status === "done"
-                      ? html`<span class="badge badge-ok"
-                          >${icon("check")} ดำเนินการแล้ว</span
-                        >`
-                      : ""}
-                    <span class="small muted">${fmtDateTime(f.ts)}</span>
-                    <span class="spacer"></span>
-                    <button class="btn btn-soft btn-sm" data-id="${f.id}">
-                      ${f.status === "done"
-                        ? html`${icon("refresh")} เปิดเรื่องใหม่`
-                        : html`${icon("check")} ทำเครื่องหมายว่าดำเนินการแล้ว`}
-                    </button>
-                    ${isAdmin()
-                      ? html`<button
-                          class="btn btn-ghost btn-sm"
-                          data-del="${f.id}"
-                          data-tip="ลบเรื่องนี้ถาวร"
-                          aria-label="ลบเรื่องนี้ถาวร"
-                        >
-                          ${icon("trash", "i-sm")}
-                        </button>`
-                      : ""}
-                  </div>
-                  <p style="white-space:pre-wrap;margin:10px 0 6px">${f.message}</p>
-                  ${f.name || f.contact
-                    ? html`<div class="small muted">
-                        ${icon("user", "i-sm")} ${f.name || "-"}
-                        ${f.contact ? html` · ${f.contact}` : ""}
-                      </div>`
-                    : ""}
-                </article>`,
-              )
-            : emptyBox("mail", "ยังไม่มีเรื่องในหมวดนี้"),
-        );
+      function render(animate) {
+        const box = $("#fb-list", el);
+        const n = data.items.filter((x) => x.status === "new").length;
+        const qn = $("#q-new", el);
+        if (qn) qn.textContent = n ? `(${n})` : "";
+        const list = filtered();
+        const pages = Math.max(1, Math.ceil(list.length / st.size));
+        st.page = Math.min(st.page, pages);
+        const rows = list.slice((st.page - 1) * st.size, st.page * st.size);
+        const draw = () => {
+          if (!list.length) {
+            setHTML(
+              box,
+              emptyBox(
+                "mail",
+                "ไม่พบเรื่องในเงื่อนไขนี้",
+                "ลองเปลี่ยนตัวกรอง หรือเลือก “ทั้งหมด”",
+              ),
+            );
+            return;
+          }
+          setHTML(
+            box,
+            html`<div class="table-wrap table-desktop">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>วันที่ส่ง</th>
+                      <th>ประเภท</th>
+                      <th>รายละเอียด</th>
+                      <th>ผู้แจ้ง / ติดต่อกลับ</th>
+                      <th>สถานะ</th>
+                      <th style="text-align:right">จัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${rows.map(
+                      (x) => html`<tr class="clickable" data-id="${x.id}">
+                        <td class="nowrap">
+                          <b>${fmtDate(dayOf(x.ts), "wd-year")}</b>
+                          <div class="t-sub">${timeOf(x.ts)} น.</div>
+                        </td>
+                        <td>${typeBadge(x)}</td>
+                        <td>
+                          <button type="button" class="t-title t-open fb-msg">
+                            ${x.message}
+                          </button>
+                        </td>
+                        <td>
+                          ${x.name || html`<span class="muted">ไม่ระบุชื่อ</span>`}
+                          <div class="t-sub">${x.contact || "—"}</div>
+                        </td>
+                        <td>${stateBadge(x)}</td>
+                        <td>${actions(x)}</td>
+                      </tr>`,
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div class="cards-mobile">
+                ${rows.map(
+                  (x) => html`<div class="bk-card fb-card" data-id="${x.id}">
+                    <div>
+                      <div class="row-wrap">
+                        ${typeBadge(x)}${stateBadge(x)}
+                      </div>
+                      <b class="fb-msg">${x.message}</b>
+                      <div class="t-sub small muted">
+                        ${fmtDateTime(x.ts)} · ${x.name || "ไม่ระบุชื่อ"}${x.contact
+                          ? ` · ${x.contact}`
+                          : ""}
+                      </div>
+                      ${actions(x)}
+                    </div>
+                  </div>`,
+                )}
+              </div>
+              <div class="pager">
+                <span
+                  >แสดง ${(st.page - 1) * st.size + 1}–${Math.min(
+                    list.length,
+                    st.page * st.size,
+                  )}
+                  จาก ${list.length} รายการ</span
+                >
+                <div class="row">
+                  <button
+                    class="btn btn-sm"
+                    data-pg="${st.page - 1}"
+                    ${st.page <= 1 ? raw("disabled") : ""}
+                  >
+                    ${icon("chevron-left", "i-sm")} ก่อนหน้า
+                  </button>
+                  <span>หน้า ${st.page}/${pages}</span>
+                  <button
+                    class="btn btn-sm"
+                    data-pg="${st.page + 1}"
+                    ${st.page >= pages ? raw("disabled") : ""}
+                  >
+                    ถัดไป ${icon("chevron-right", "i-sm")}
+                  </button>
+                </div>
+              </div>`,
+          );
+        };
+        if (animate) swap(box, draw, "fade");
+        else draw();
       }
 
       async function load() {
@@ -11467,15 +11706,59 @@
         }
       }
 
-      seg.onclick = (e) => {
-        const b = e.target.closest("button[data-value]");
-        if (!b) return;
-        filter = b.dataset.value;
-        segSelect(seg, filter);
-        render();
-      };
-      listEl.onclick = async (e) => {
-        const del = e.target.closest("button[data-del]");
+      function openDetail(x) {
+        const body = document.createElement("div");
+        body.className = "stack";
+        setHTML(
+          body,
+          html`<div class="row-wrap">
+              ${typeBadge(x)}${stateBadge(x)}
+            </div>
+            <p style="white-space:pre-wrap;margin:0">${x.message}</p>
+            <div class="detail-rows">
+              ${[
+                ["clock", "ส่งเมื่อ", `${fmtDateTime(x.ts)} น.`],
+                ["user", "ผู้แจ้ง", x.name || "ไม่ระบุชื่อ"],
+                ["phone", "ติดต่อกลับ", x.contact || "—"],
+              ].map(
+                ([ic, label, v]) =>
+                  html`<div class="detail-row">
+                    ${icon(ic)}<span>${label}</span><b>${v}</b>
+                  </div>`,
+              )}
+            </div>`,
+        );
+        const foot = document.createElement("div");
+        foot.className = "row";
+        setHTML(
+          foot,
+          html`<button class="btn btn-ghost" data-x>ปิด</button>
+            ${isAdmin()
+              ? html`<button class="btn btn-danger-soft" data-del="${x.id}">
+                  ${icon("trash", "i-sm")} ลบถาวร
+                </button>`
+              : ""}
+            <button
+              class="btn ${x.status === "done" ? "btn-soft" : "btn-ok"}"
+              data-done="${x.id}"
+            >
+              ${x.status === "done"
+                ? html`${icon("refresh", "i-sm")} เปิดเรื่องใหม่`
+                : html`${icon("check", "i-sm")} ดำเนินการแล้ว`}
+            </button>`,
+        );
+        const m = openModal({ title: "รายละเอียดเรื่อง", body, footer: foot });
+        foot.querySelector("[data-x]").onclick = () => m.close();
+        foot.onclick = (e) => {
+          if (e.target.closest("[data-done],[data-del]")) {
+            m.close();
+            act(e);
+          }
+        };
+      }
+
+      async function act(e) {
+        const del = e.target.closest("[data-del]");
         if (del) {
           const ok = await confirmDialog({
             title: "ลบเรื่องนี้ถาวร?",
@@ -11500,23 +11783,70 @@
           }
           return;
         }
-        const b = e.target.closest("button[data-id]");
-        if (!b) return;
-        const f = data.items.find((x) => x.id === b.dataset.id);
-        b.classList.add("is-loading");
+        const done = e.target.closest("[data-done]");
+        if (!done) return;
+        const x = data.items.find((y) => y.id === done.dataset.done);
+        if (!x) return;
+        done.classList.add("is-loading");
         try {
-          const res = await api(`/api/admin/feedback/${encodeURIComponent(f.id)}`, {
+          const res = await api(`/api/admin/feedback/${encodeURIComponent(x.id)}`, {
             method: "PATCH",
-            body: { status: f.status === "done" ? "new" : "done" },
+            body: { status: x.status === "done" ? "new" : "done" },
           });
-          Object.assign(f, res.item);
+          Object.assign(x, res.item);
+          if (x.status === "new") {
+            delete x.doneAt;
+            delete x.doneBy;
+          }
+          toast(
+            x.status === "done" ? "ปิดเรื่องแล้ว" : "เปิดเรื่องใหม่แล้ว",
+            "success",
+          );
           render();
           refreshPending();
         } catch (err) {
           toastError(err);
-          b.classList.remove("is-loading");
+          done.classList.remove("is-loading");
         }
+      }
+
+      el.addEventListener("click", (e) => {
+        const chip = e.target.closest("#fb-quick .chip");
+        if (chip) {
+          const p = presets.find((x) => x[0] === chip.dataset.p);
+          Object.assign(st, p[2], { preset: p[0], page: 1 });
+          syncInputs();
+          render(true);
+          return;
+        }
+        const pg = e.target.closest("[data-pg]");
+        if (pg) {
+          st.page = Number(pg.dataset.pg);
+          render(true);
+          return;
+        }
+        if (e.target.closest("[data-done],[data-del]")) return act(e);
+        const row = e.target.closest("#fb-list [data-id]");
+        if (row) {
+          const x = data.items.find((y) => y.id === row.dataset.id);
+          if (x) openDetail(x);
+        }
+      });
+      const changed = () => {
+        for (const k of Object.keys(f)) st[k] = f[k].value;
+        st.preset = "";
+        st.page = 1;
+        syncInputs();
+        render(true);
       };
+      f.q.oninput = debounce(changed, 250);
+      for (const k of ["type", "status", "from", "to", "sort"])
+        f[k].onchange = changed;
+      $("#fb-csv", el).onclick = () => {
+        location.href = `/api/admin/feedback.csv?${params()}`;
+        toast("กำลังดาวน์โหลดไฟล์ CSV (เปิดด้วย Excel ได้)", "success");
+      };
+      syncInputs();
       ctx.refresh = load;
       await load();
     }
@@ -11579,6 +11909,7 @@
       free: "var(--free)",
       busy: "var(--busy)",
       soon: "var(--soon)",
+      pending: "var(--soon)",
       closed: "#94a3b8",
       off: "#94a3b8",
     };
@@ -11586,6 +11917,7 @@
       free: "check",
       busy: "users",
       soon: "clock",
+      pending: "hourglass",
       closed: "ban",
       off: "moon",
     };
@@ -11632,6 +11964,15 @@
         };
       if (cur) {
         const left = toMin(cur.end) - n.minutes;
+        if (cur.kind !== "block" && cur.status === "pending")
+          return {
+            key: "pending",
+            label: "รออนุมัติ",
+            sub: `มีคำขอจองถึง ${cur.end} น. รอผู้ดูแลอนุมัติ`,
+            items,
+            cur,
+            next,
+          };
         return {
           key: "busy",
           label: cur.kind === "block" ? "ปิดใช้ห้อง" : "ไม่ว่าง",
@@ -11734,7 +12075,11 @@
         );
         return html`<div class="ds-now">
           <span class="lbl"
-            >${st.cur.kind === "block" ? "ปิดใช้ห้อง" : "กำลังประชุม"}${st.cur
+            >${st.cur.kind === "block"
+              ? "ปิดใช้ห้อง"
+              : st.cur.status === "pending"
+                ? "คำขอจองรออนุมัติ"
+                : "กำลังประชุม"}${st.cur
               .checkedIn
               ? " · เช็คอินแล้ว"
               : ""}</span

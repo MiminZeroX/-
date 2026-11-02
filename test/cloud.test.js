@@ -205,14 +205,22 @@ describe(
       assert.equal(f.message, "ปุ่มจองกดไม่ได้ บนมือถือ", "ตัดอักขระกลับทิศข้อความ");
       assert.equal(f.status, "new");
       r = await call(app, "PATCH", `/api/admin/feedback/${f.id}`, { status: "done" }, { cookie });
-      assert.equal((await r.json()).item.status, "done");
+      const done = (await r.json()).item;
+      assert.equal(done.status, "done");
+      assert.ok(done.doneAt && done.doneBy, "บันทึกผู้ปิดเรื่องและเวลา");
       assert.equal(await me(), 0);
+      // ส่งออก CSV: ผู้ไม่ได้เข้าสู่ระบบโหลดไม่ได้ · ข้อความที่ขึ้นต้นด้วย = ถูกกันไม่ให้ Excel ตีความเป็นสูตร
+      assert.equal((await call(app, "GET", "/api/admin/feedback.csv")).status, 401);
+      await call(app, "POST", "/api/feedback", { type: "idea", message: "=HYPERLINK(\"http://x\")" });
+      const csv = await (await call(app, "GET", "/api/admin/feedback.csv?type=idea", undefined, { cookie })).text();
+      assert.match(csv, /'=HYPERLINK/);
+      assert.ok(!csv.includes("ปุ่มจองกดไม่ได้"), "กรองตามประเภท");
       // ลบถาวรได้ (ข้อมูลส่วนบุคคล) และลบซ้ำได้ 404
       r = await call(app, "DELETE", `/api/admin/feedback/${f.id}`, undefined, { cookie });
       assert.equal(r.status, 200);
       r = await call(app, "DELETE", `/api/admin/feedback/${f.id}`, undefined, { cookie });
       assert.equal(r.status, 404);
-      assert.equal((await (await call(app, "GET", "/api/admin/feedback", undefined, { cookie })).json()).items.length, 0);
+      assert.equal((await (await call(app, "GET", "/api/admin/feedback", undefined, { cookie })).json()).items.length, 1, "เหลือเฉพาะเรื่องที่ใช้ทดสอบ CSV");
       app.stop();
 
       // จำกัด 10 เรื่องต่อชั่วโมงต่อ IP

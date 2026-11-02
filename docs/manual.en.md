@@ -86,7 +86,7 @@ Open a browser (Chrome, Edge, Safari) and type the system address, or scan the Q
 - The tiles show the time, today’s meetings and how many rooms are free now
 - **จองห้องประชุม** (Book a meeting room) starts a booking; **ดูตารางห้อง** opens the calendar
 
-Scroll down for a card per room, with the **room photo** when an administrator has added one, and its status **ว่าง** (Free) / **ไม่ว่าง** (In use) / **ใกล้เริ่มประชุม** (Starting soon), today’s timeline (red line = now) and **จองห้องนี้** (Book this room).
+Scroll down for a card per room, with the **room photo** when an administrator has added one, and its status (**รออนุมัติ** means a request awaiting approval holds the slot — nobody else can book it, but it is not confirmed yet; the door display shows the same) **ว่าง** (Free) / **ไม่ว่าง** (In use) / **ใกล้เริ่มประชุม** (Starting soon), today’s timeline (red line = now) and **จองห้องนี้** (Book this room).
 Under the room name, **ยืนยันทันที** = confirmed instantly; **รอผู้ดูแลอนุมัติ** = awaits approval.
 
 ![Room cards with photos](images/u-room-photo.jpg)
@@ -239,7 +239,7 @@ The dashboard shows today/this month, a bookings chart, requests **รออน�
 
 ![Editing a room and its photo](images/a-room-photo.jpg)
 
-**Complaints and suggestions** (menu **ร้องเรียน · ข้อเสนอแนะ**): filter by not done / done / all, the orange number on the menu counts items not yet done (the browser tab title adds it to pending bookings) and a pop-up with the notification sound appears when a new item arrives; press **ทำเครื่องหมายว่าดำเนินการแล้ว** (Mark as done) when handled, and use the bin icon (administrators only) to delete an item permanently when its retention period ends or the sender asks.
+**Complaints and suggestions** (menu **ร้องเรียน · ข้อเสนอแนะ**): laid out like the bookings page — quick filters with the open count, search, type, status, date range and sort, a paged table with who closed each item and when, a detail dialog, and **ส่งออก CSV** (Excel export, logged). Filter by not done / done / all, the orange number on the menu counts items not yet done (the browser tab title adds it to pending bookings) and a pop-up with the notification sound appears when a new item arrives; press **ทำเครื่องหมายว่าดำเนินการแล้ว** (Mark as done) when handled, and use the bin icon (administrators only) to delete an item permanently when its retention period ends or the sender asks.
 
 ![Complaints and suggestions](images/a-feedback.jpg)
 

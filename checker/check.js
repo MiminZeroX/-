@@ -47,6 +47,7 @@ const ADMIN_READ = [
   "/api/admin/bookings",
   "/api/admin/bookings.csv",
   "/api/admin/feedback",
+  "/api/admin/feedback.csv",
   "/api/admin/settings",
   "/api/admin/rooms",
   "/api/admin/users",

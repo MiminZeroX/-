@@ -2112,6 +2112,72 @@ function createApp(opts = {}) {
     { auth: "staff" },
   );
 
+  // ส่งออก CSV ตามตัวกรองเดียวกับหน้าผู้ดูแล (q, type, status, from, to)
+  route(
+    "GET",
+    "/api/admin/feedback.csv",
+    (ctx) => {
+      const q = ctx.query;
+      const text = String(q.get("q") || "").toLowerCase();
+      const type = q.get("type");
+      const status = q.get("status");
+      const from = isDate(q.get("from")) ? q.get("from") : "";
+      const to = isDate(q.get("to")) ? q.get("to") : "";
+      const at = (ts) => new Date(ts + 7 * 3600000).toISOString();
+      const list = store.db.feedback
+        .filter(
+          (f) =>
+            (!type || f.type === type) &&
+            (!status || status === "all" || f.status === status) &&
+            (!from || at(f.ts).slice(0, 10) >= from) &&
+            (!to || at(f.ts).slice(0, 10) <= to) &&
+            (!text ||
+              `${f.message} ${f.name || ""} ${f.contact || ""}`
+                .toLowerCase()
+                .includes(text)),
+        )
+        .sort((a, b) => b.ts - a.ts);
+      // ข้อความที่ขึ้นต้นด้วย = + - @ ถูกเติม ' กัน Excel ตีความเป็นสูตร (CSV injection)
+      const esc = (v) => {
+        let s = String(v ?? "");
+        if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+        return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const stamp = (ts) => (ts ? at(ts).slice(0, 16).replace("T", " ") : "");
+      const head = [
+        "วันที่ส่ง",
+        "ประเภท",
+        "รายละเอียด",
+        "ชื่อผู้แจ้ง",
+        "ช่องทางติดต่อกลับ",
+        "สถานะ",
+        "ดำเนินการโดย",
+        "ดำเนินการเมื่อ",
+      ];
+      const rows = list.map((f) => [
+        stamp(f.ts),
+        FEEDBACK_TYPES[f.type] || f.type,
+        f.message,
+        f.name,
+        f.contact,
+        f.status === "done" ? "ดำเนินการแล้ว" : "ยังไม่ดำเนินการ",
+        f.doneBy,
+        stamp(f.doneAt),
+      ]);
+      const csv = `\ufeff${[head, ...rows].map((r) => r.map(esc).join(",")).join("\r\n")}`;
+      log(ctx, "export.csv", `ส่งออกเรื่องร้องเรียน/ข้อเสนอแนะ ${list.length} เรื่อง (CSV)`);
+      sendFile(
+        ctx.res,
+        200,
+        csv,
+        "text/csv; charset=utf-8",
+        `feedback-${bkkNow().date}.csv`,
+      );
+      return undefined;
+    },
+    { auth: "staff" },
+  );
+
   route(
     "PATCH",
     "/api/admin/feedback/:id",
@@ -2119,6 +2185,14 @@ function createApp(opts = {}) {
       const f = store.db.feedback.find((x) => x.id === ctx.params.id);
       if (!f) throw new HttpError(404, "ไม่พบเรื่องนี้");
       f.status = ctx.body.status === "done" ? "done" : "new";
+      // ใครปิดเรื่อง เมื่อไร (แสดงในรายการ และส่งออก CSV)
+      if (f.status === "done") {
+        f.doneAt = Date.now();
+        f.doneBy = ctx.admin.name || ctx.admin.username;
+      } else {
+        delete f.doneAt;
+        delete f.doneBy;
+      }
       store.saveDb();
       log(
         ctx,
