@@ -249,12 +249,13 @@ li::marker {
   border: 0.3mm solid #cfe0f5;
   color: var(--navy);
 }
+/* ภาพหน้าจอบนปกต้องอยู่ในหน้าครบทั้งภาพ (เดิมล้นขอบล่างจนดูเหมือนถูกตัดครึ่ง) */
 .cover .shot {
   position: absolute;
   left: 50%;
-  bottom: -26mm;
-  width: 160mm;
-  margin-left: -80mm;
+  bottom: 17mm;
+  width: 140mm;
+  margin-left: -70mm;
   border-radius: 4mm;
   overflow: hidden;
   box-shadow:
@@ -655,21 +656,7 @@ ul.task-list li::before,
   color: transparent;
 }
 
-/* ---------- คู่มือสองภาษา: หัวหมวดภาษาในสารบัญ และชื่อรองบนปก ---------- */
-.toc li.lang {
-  margin: 6mm 0 1mm;
-  padding: 2mm 3mm;
-  background: var(--navy);
-  color: #fff;
-  border-radius: 2mm;
-  font-weight: 800;
-  font-size: 11pt;
-  letter-spacing: 0.3pt;
-  break-after: avoid;
-}
-.toc li.lang:first-child {
-  margin-top: 0;
-}
+/* ---------- ชื่อรองบนปก ---------- */
 .cover h1.ct small {
   display: block;
   font-size: 19pt;

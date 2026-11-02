@@ -9,7 +9,9 @@
 - ไม่ต้องติดตั้งฐานข้อมูลหรือแพ็กเกจเพิ่ม — ต้องการแค่ **Node.js** (รุ่น 18 ขึ้นไป)
 - ข้อมูลเก็บเป็นไฟล์ในโฟลเดอร์ `data/` และสำรองอัตโนมัติทุกวัน
 
-**คู่มือ / Manual** — [คู่มือฉบับสมบูรณ์ ไทย/English (PDF)](docs/pdf/manual.pdf) · ต้นฉบับ [docs/manual.md](docs/manual.md) — การใช้งานเว็บ (ผู้ใช้/ผู้ดูแล) GitHub Cloudflare การสร้างใหม่ การส่งมอบ และความปลอดภัย
+**คู่มือ (PDF)** — [ผู้ใช้ทั่วไป](docs/pdf/user-guide.pdf) · [ผู้ดูแลระบบและการพัฒนาต่อยอด](docs/pdf/admin-guide.pdf) · [โปรแกรมตรวจสอบระบบ](docs/pdf/checker-guide.pdf) · [การลบข้อมูลและล้างฐานข้อมูล](docs/pdf/data-deletion-guide.pdf) · [English manual](docs/pdf/manual.en.pdf) — รายละเอียดใน [docs/README.md](docs/README.md)
+
+**ตรวจระบบ** — ดับเบิลคลิก `checker/check-windows.bat` (Windows) หรือ `checker/check-mac.command` (macOS) เพื่อตรวจการทำงานและความปลอดภัยของเว็บจริง (ดูคู่มือโปรแกรมตรวจสอบระบบ)
 
 ---
 
@@ -248,10 +250,11 @@ public/js.js                 สคริปต์ทั้งหมดของ
 public/icon.svg              ไอคอนเว็บ (ตราสำนักงานเขต SVG)
 public/brand/                ตราสำนักงานเขตบางรัก (seal.svg) และโลโก้เต็ม (logo-bangrak.svg) แบบเวกเตอร์
 public/fonts/                ฟอนต์ Anuphan (SIL OFL)
-test/                ชุดทดสอบ API
+test/                ชุดทดสอบอัตโนมัติ (npm test)
+checker/             โปรแกรมตรวจสอบระบบ (ตรวจการทำงานและความปลอดภัยของเว็บจริง) สำหรับ Windows/macOS
 deploy/              สคริปต์ติดตั้งบนเครื่องคลาวด์ (VM Ubuntu + HTTPS) และคู่มือ
 worker/              ระบบบน Cloudflare Workers (Durable Object + ที่เก็บข้อมูล SQLite) — ตั้งค่าใน wrangler.jsonc
-docs/                คู่มือเจ้าหน้าที่ / ผู้ดูแลระบบ (ไทย/อังกฤษ) ภาพหน้าจอ และฉบับ PDF
+docs/                คู่มือ 4 เล่มภาษาไทย + ฉบับภาษาอังกฤษ (Markdown) ภาพหน้าจอ และฉบับ PDF (docs/pdf/)
 ```
 
 ฟอนต์ **Anuphan** โดย Cadson Demak เผยแพร่ภายใต้ SIL Open Font License 1.1 (`public/fonts/OFL-Anuphan.txt`)

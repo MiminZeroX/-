@@ -3,7 +3,8 @@
 
 // สร้างคู่มือฉบับ PDF (A4) จากไฟล์ Markdown ใน docs/ — ปก สารบัญพร้อมเลขหน้า หน้าคั่นส่วน และคำบรรยายภาพ
 // ต้องมี: pandoc, pdftotext (poppler-utils) และ Playwright + Chromium
-// ใช้:  node docs/build/build-pdf.js            (สร้าง docs/pdf/manual.pdf จาก docs/manual.md)
+// ใช้:  node docs/build/build-pdf.js                 (สร้างทุกเล่มใน DOCS)
+//       node docs/build/build-pdf.js user-guide      (สร้างเฉพาะเล่มที่ระบุ)
 
 const { execFileSync } = require("child_process");
 const fs = require("fs");
@@ -14,29 +15,71 @@ const { chromium } = require("playwright");
 const DOCS_DIR = path.resolve(__dirname, "..");
 const OUT_DIR = path.join(DOCS_DIR, "pdf");
 
-// ข้อความประจำเล่ม (คู่มือเล่มเดียวสองภาษา: ไทยครึ่งแรก อังกฤษครึ่งหลัง)
+// ข้อความประจำเล่ม: ภาษาไทย (คู่มือหลักสำหรับหน่วยงาน) และภาษาอังกฤษ
 const LANG = {
-  org: "สำนักงานเขตบางรัก · Bang Rak District Office",
-  sys: "ระบบจองห้องประชุม · Meeting Room Booking System",
-  chips: [
-    "ห้องประชุมเล็ก ชั้น 2 · Small Room 2F",
-    "ห้องประชุมใหญ่ ชั้น 4 · Large Room 4F",
-  ],
-  ver: "ฉบับที่ 2.0 · ตุลาคม 2569 · Version 2.0 · October 2026",
-  toc: "สารบัญ · Contents",
-  about: "เกี่ยวกับคู่มือนี้ · About this manual",
-  fig: { th: "ภาพที่", en: "Figure" },
-  page: "หน้า · Page",
+  th: {
+    org: "สำนักงานเขตบางรัก · กรุงเทพมหานคร",
+    sys: "ระบบจองห้องประชุม",
+    chips: ["ห้องประชุมเล็ก ชั้น 2", "ห้องประชุมใหญ่ ชั้น 4"],
+    ver: "ฉบับที่ 3.0 · พฤศจิกายน 2569",
+    toc: "สารบัญ",
+    about: "เกี่ยวกับคู่มือเล่มนี้",
+    fig: "ภาพที่",
+    page: "หน้า",
+  },
+  en: {
+    org: "Bang Rak District Office · Bangkok",
+    sys: "Meeting Room Booking System",
+    chips: ["Small Room 2F", "Large Room 4F"],
+    ver: "Version 3.0 · November 2026",
+    toc: "Contents",
+    about: "About this manual",
+    fig: "Figure",
+    page: "Page",
+  },
 };
 
+// เล่มคู่มือ: ชื่อไฟล์ .md ใน docs/ → docs/pdf/<ชื่อ>.pdf
 const DOCS = {
-  manual: {
+  "user-guide": {
+    lang: "th",
     shot: "images/u-home.jpg",
-    kicker: "คู่มือฉบับสมบูรณ์ · Complete Manual",
-    title: "ระบบจองห้องประชุม<br><small>Meeting Room Booking System</small>",
-    sub: "ผู้ใช้ · ผู้ดูแล · GitHub · Cloudflare · สร้างใหม่ · ส่งมอบ · ความปลอดภัย — Users · Admins · GitHub · Cloudflare · Setup · Handover · Security",
-    footer:
-      "คู่มือระบบจองห้องประชุม สำนักงานเขตบางรัก · Meeting Room Booking System Manual",
+    kicker: "คู่มือการใช้งาน",
+    title: "สำหรับผู้ใช้ทั่วไป",
+    sub: "ดูห้องว่าง · จองห้อง · แก้ไขและยกเลิก · เช็คอิน · ร้องเรียนและแจ้งปัญหา · ใช้บนมือถือ",
+    footer: "คู่มือการใช้งานระบบจองห้องประชุม สำหรับผู้ใช้ทั่วไป",
+  },
+  "admin-guide": {
+    lang: "th",
+    shot: "images/a-dash.jpg",
+    kicker: "คู่มือผู้ดูแลระบบ",
+    title: "ผู้ดูแลระบบ<br>และการพัฒนาต่อยอด",
+    sub: "หน้าผู้ดูแล · GitHub · Cloudflare · แก้ไขโค้ด · สร้างระบบใหม่ · ส่งมอบงาน · ความปลอดภัย",
+    footer: "คู่มือผู้ดูแลระบบและการพัฒนาต่อยอด ระบบจองห้องประชุม",
+  },
+  "checker-guide": {
+    lang: "th",
+    shot: "images/c-report.jpg",
+    kicker: "คู่มือการใช้งาน",
+    title: "โปรแกรมตรวจสอบระบบ",
+    sub: "ตรวจการทำงานของเว็บไซต์และความปลอดภัย บน Windows และ macOS · อ่านรายงาน · แนวทางแก้ไข",
+    footer: "คู่มือโปรแกรมตรวจสอบระบบ ระบบจองห้องประชุม",
+  },
+  "data-deletion-guide": {
+    lang: "th",
+    shot: "images/a-purge.jpg",
+    kicker: "คู่มือปฏิบัติงาน",
+    title: "การลบข้อมูล<br>และล้างฐานข้อมูล",
+    sub: "ลบรายรายการ · ล้างการจองตามระยะเก็บ · กู้คืนเมื่อลบผิด · รีเซ็ตทั้งระบบ · ปิดระบบถาวร · PDPA",
+    footer: "คู่มือการลบข้อมูลและล้างฐานข้อมูล ระบบจองห้องประชุม",
+  },
+  "manual.en": {
+    lang: "en",
+    shot: "images/u-home.jpg",
+    kicker: "Complete Manual",
+    title: "Meeting Room<br>Booking System",
+    sub: "Users · Admins · GitHub · Cloudflare · Development · Setup · Handover · Security",
+    footer: "Meeting Room Booking System Manual · Bang Rak District Office",
   },
 };
 
@@ -117,10 +160,7 @@ function transform({ doc, L, pages, markers }) {
       div.querySelector("ol").appendChild(li);
     });
     h.replaceWith(div);
-    // กลุ่มภาษา: ข้อความก่อน " · " ของป้ายส่วน เช่น "ภาษาไทย" / "English"
-    const group = lbl.includes(" · ") ? lbl.split(" · ")[0].trim() : "";
-    div.dataset.lang = /^English/.test(group) ? "en" : "th";
-    entries.push({ el: h1, n: letter, t: title, part: true, group });
+    entries.push({ el: h1, n: letter, t: title, part: true });
   });
   entries.sort((a, b) =>
     a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -130,19 +170,7 @@ function transform({ doc, L, pages, markers }) {
 
   // ภาพ: ย่อหน้าที่มีแต่รูป -> figure พร้อมคำบรรยาย
   let figNo = 0;
-  let figLang = "th";
-  const enStart = content.querySelector('.part-page[data-lang="en"]');
   content.querySelectorAll("p").forEach((p) => {
-    // เลขภาพเริ่มใหม่ในครึ่งภาษาอังกฤษ
-    const lang =
-      enStart &&
-      enStart.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING
-        ? "en"
-        : "th";
-    if (lang !== figLang) {
-      figLang = lang;
-      figNo = 0;
-    }
     const imgs = [...p.querySelectorAll("img")];
     if (!imgs.length || p.textContent.trim()) return;
     const fig = document.createElement("figure");
@@ -157,7 +185,7 @@ function transform({ doc, L, pages, markers }) {
     const cap = document.createElement("figcaption");
     const first = ++figNo;
     if (imgs.length > 1) figNo += imgs.length - 1;
-    cap.innerHTML = `<b>${L.fig[lang]} ${first === figNo ? first : `${first}–${figNo}`}</b><span></span>`;
+    cap.innerHTML = `<b>${L.fig} ${first === figNo ? first : `${first}–${figNo}`}</b><span></span>`;
     cap.lastChild.textContent = imgs.map((i) => i.alt).join(" · ");
     fig.appendChild(cap);
     p.replaceWith(fig);
@@ -206,16 +234,7 @@ function transform({ doc, L, pages, markers }) {
   toc.querySelector(".toc-h").textContent = L.toc;
   toc.querySelector(".about h3").textContent = L.about;
   intro.forEach((n) => toc.querySelector(".about").appendChild(n));
-  let group = null;
   entries.forEach((e, i) => {
-    // หัวหมวดภาษาในสารบัญ
-    if (e.part && e.group && e.group !== group) {
-      group = e.group;
-      const gh = document.createElement("li");
-      gh.className = "lang";
-      gh.textContent = group;
-      toc.querySelector(".toc").appendChild(gh);
-    }
     const li = document.createElement("li");
     if (e.part) li.className = "part";
     li.innerHTML = `<a href="#${e.el.id}"><span class="n"></span><span class="t"></span><span class="p"></span></a>`;
@@ -258,7 +277,7 @@ async function render(page, name, html, opts) {
 
 async function build(browser, name) {
   const doc = DOCS[name];
-  const L = LANG;
+  const L = LANG[doc.lang];
   const fragment = execFileSync(
     "pandoc",
     [
@@ -273,7 +292,7 @@ async function build(browser, name) {
   const htmlFile = path.join(__dirname, `.${name}.html`);
   fs.writeFileSync(
     htmlFile,
-    `<!doctype html><html lang="th"><head><meta charset="utf-8">
+    `<!doctype html><html lang="${doc.lang}"><head><meta charset="utf-8">
 <base href="file://${DOCS_DIR}/"><link rel="stylesheet" href="build/manual.css">
 <style>@page{@bottom-left{content:${JSON.stringify(doc.footer)}}@bottom-right{content:${JSON.stringify(`${L.page} `)} counter(page) " / " counter(pages)}@top-right{content:${JSON.stringify(L.org)}}}</style></head>
 <body><div id="src">${fragment}</div></body></html>`,
