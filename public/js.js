@@ -6541,8 +6541,9 @@
     }
 
     // ฟิลด์ตั้งรหัสผ่านใหม่ (ใช้ทั้งหน้าตั้งรหัสครั้งแรกและหน้าต่างเปลี่ยนรหัสผ่าน)
+    // ถ้าตั้งจำนวนอักษาในการตั้งรหัสใหม่เปลี่ยนเลข minlength ด้วย 
     const PW_HINT =
-      "อย่างน้อย 12 ตัวอักษร วลีที่จำง่ายปลอดภัยกว่าคำสั้นที่ซับซ้อน";
+      "อย่างน้อย 5 ตัวอักษร วลีที่จำง่ายปลอดภัยกว่าคำสั้นที่ซับซ้อน";
     function passwordFields() {
       return html`<label class="field" data-f="current"
           ><span>รหัสผ่านปัจจุบัน</span
@@ -6560,7 +6561,7 @@
             type="password"
             name="next"
             autocomplete="new-password"
-            minlength="12"
+            minlength="5"
             aria-describedby="pw-hint"
             required
           /><small class="field-hint" id="pw-hint">${PW_HINT}</small></label
