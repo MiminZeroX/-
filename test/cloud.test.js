@@ -198,11 +198,15 @@ describe(
       cookie = r.headers.get("set-cookie").split(";")[0];
       const list = await (await call(app, "GET", "/api/admin/feedback", undefined, { cookie })).json();
       assert.equal(list.items.length, 1);
+      // ตัวเลขแจ้งเตือนบนเมนู = เรื่องที่ยังไม่ดำเนินการ
+      const me = async () => (await (await call(app, "GET", "/api/admin/me", undefined, { cookie })).json()).feedbackNew;
+      assert.equal(await me(), 1);
       const f = list.items[0];
       assert.equal(f.message, "ปุ่มจองกดไม่ได้ บนมือถือ", "ตัดอักขระกลับทิศข้อความ");
       assert.equal(f.status, "new");
       r = await call(app, "PATCH", `/api/admin/feedback/${f.id}`, { status: "done" }, { cookie });
       assert.equal((await r.json()).item.status, "done");
+      assert.equal(await me(), 0);
       // ลบถาวรได้ (ข้อมูลส่วนบุคคล) และลบซ้ำได้ 404
       r = await call(app, "DELETE", `/api/admin/feedback/${f.id}`, undefined, { cookie });
       assert.equal(r.status, 200);

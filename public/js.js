@@ -1641,6 +1641,9 @@
       es.addEventListener("config", (e) =>
         handlers.config?.(JSON.parse(e.data)),
       );
+      es.addEventListener("feedback", (e) =>
+        handlers.feedback?.(JSON.parse(e.data)),
+      );
       es.addEventListener("hello", (e) => handlers.hello?.(JSON.parse(e.data)));
       // ระบบปิดสตรีมตามรอบ (แจ้ง "bye" ก่อน) แล้วเบราว์เซอร์ต่อใหม่เอง — ไม่ต้องแสดงว่าออฟไลน์
       let planned = false;
@@ -5713,6 +5716,7 @@
       departments: [],
       holidays: [],
       pending: 0,
+      feedbackNew: 0,
       serverUrls: [],
       online: true,
     };
@@ -5777,7 +5781,7 @@
       },
       {
         id: "feedback",
-        label: "ร้องเรียนและข้อเสนอแนะ",
+        label: "ร้องเรียน · ข้อเสนอแนะ",
         icon: "mail",
         role: "staff",
         group: "ภาพรวม",
@@ -5920,6 +5924,7 @@
         A.settings = cached.settings || {};
         A.rooms = cached.rooms || [];
         A.pending = cached.pending || 0;
+        A.feedbackNew = cached.feedbackNew || 0;
         applyAppearance(A.settings);
         renderShell();
         setHTML(
@@ -5960,6 +5965,7 @@
         const me = await api("/api/admin/me");
         A.me = me.admin;
         A.pending = me.pendingCount;
+        A.feedbackNew = me.feedbackNew || 0;
         await enter();
       } catch (err) {
         if (err.status === 401) {
@@ -6197,6 +6203,7 @@
           A.me = res.admin;
           const me = await api("/api/admin/me");
           A.pending = me.pendingCount;
+          A.feedbackNew = me.feedbackNew || 0;
           await authSuccess(btn);
           toast(`ยินดีต้อนรับ ${A.me.name}`, "success");
           await enter();
@@ -6232,6 +6239,7 @@
         settings: A.settings,
         rooms: A.rooms,
         pending: A.pending,
+        feedbackNew: A.feedbackNew,
       });
     }
 
@@ -6273,7 +6281,14 @@
                                     id="pending-pill"
                                     hidden
                                   ></span>`
-                                : ""}</a
+                                : x.id === "feedback"
+                                  ? html`<span
+                                      class="pill"
+                                      id="feedback-pill"
+                                      data-tip="เรื่องที่ยังไม่ดำเนินการ"
+                                      hidden
+                                    ></span>`
+                                  : ""}</a
                             >`,
                         )}`,
                 )}
@@ -6375,21 +6390,29 @@
       updatePending();
     }
 
-    function updatePending(n = A.pending) {
+    // ตัวเลขบนเมนู: คำขอจองรออนุมัติ และเรื่องร้องเรียนที่ยังไม่ดำเนินการ (รวมกันแสดงบนแท็บเบราว์เซอร์)
+    function updatePending(n = A.pending, f = A.feedbackNew) {
       A.pending = n;
-      const pill = $("#pending-pill");
-      if (pill) {
-        pill.hidden = !n;
-        pill.textContent = n;
+      A.feedbackNew = f || 0;
+      for (const [id, v] of [
+        ["#pending-pill", n],
+        ["#feedback-pill", A.feedbackNew],
+      ]) {
+        const pill = $(id);
+        if (pill) {
+          pill.hidden = !v;
+          pill.textContent = v;
+        }
       }
+      const total = n + A.feedbackNew;
       const base = `${A.secLabel ? `${A.secLabel} · ` : ""}ผู้ดูแลระบบ · ${A.settings.siteName}`;
-      document.title = n ? `(${n}) ${base}` : base;
+      document.title = total ? `(${total}) ${base}` : base;
     }
 
     async function refreshPending() {
       try {
         const me = await api("/api/admin/me");
-        updatePending(me.pendingCount);
+        updatePending(me.pendingCount, me.feedbackNew);
       } catch (err) {
         if (err.status === 401) {
           shellCache.clear();
@@ -6453,6 +6476,16 @@
             if (A.settings.adminNotifySound) chime();
           }
           current.refresh?.(ev);
+        }, 300),
+        feedback: debounce(async (ev) => {
+          await refreshPending();
+          if (ev.action === "create") {
+            toast("มีเรื่องร้องเรียน/แจ้งปัญหาใหม่ ดูที่เมนูร้องเรียนและข้อเสนอแนะ", "warning", {
+              title: "เรื่องใหม่จากผู้ใช้",
+            });
+            if (A.settings.adminNotifySound) chime();
+          }
+          if (current.id === "feedback") current.refresh?.(ev);
         }, 300),
         config: debounce(async () => {
           await loadPublic().catch(() => {});
@@ -11461,6 +11494,7 @@
             data.items = data.items.filter((x) => x.id !== del.dataset.del);
             toast("ลบเรื่องแล้ว", "success");
             render();
+            refreshPending();
           } catch (err) {
             toastError(err);
           }
@@ -11477,6 +11511,7 @@
           });
           Object.assign(f, res.item);
           render();
+          refreshPending();
         } catch (err) {
           toastError(err);
           b.classList.remove("is-loading");

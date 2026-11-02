@@ -1077,6 +1077,8 @@ function createApp(opts = {}) {
     if (list.length > MAX_FEEDBACK) list.splice(0, list.length - MAX_FEEDBACK);
     store.saveDb();
     log(ctx, "feedback.create", `${FEEDBACK_TYPES[type]}: ${cleanStr(message, 120)}`);
+    // แจ้งหน้าผู้ดูแลที่เปิดอยู่ (ส่งถึงทุกการเชื่อมต่อ จึงไม่ใส่เนื้อหาเรื่อง)
+    broadcast("feedback", { action: "create" });
     return { ok: true };
   });
 
@@ -1415,7 +1417,11 @@ function createApp(opts = {}) {
   route(
     "GET",
     "/api/admin/me",
-    (ctx) => ({ admin: adminPublic(ctx.admin), pendingCount: pendingCount() }),
+    (ctx) => ({
+      admin: adminPublic(ctx.admin),
+      pendingCount: pendingCount(),
+      feedbackNew: feedbackNew(),
+    }),
     {
       auth: "staff",
       allowMustChange: true,
@@ -1495,6 +1501,10 @@ function createApp(opts = {}) {
   );
 
   // ---------- admin: dashboard ----------
+  // เรื่องร้องเรียน/แจ้งปัญหาที่ยังไม่ดำเนินการ (ตัวเลขแจ้งเตือนบนเมนู)
+  const feedbackNew = () =>
+    store.db.feedback.filter((f) => f.status === "new").length;
+
   function pendingCount() {
     return store.db.bookings.filter(
       (b) => b.status === "pending" && !hasEnded(b),
@@ -2115,6 +2125,7 @@ function createApp(opts = {}) {
         "feedback.update",
         `${f.status === "done" ? "ดำเนินการแล้ว" : "เปิดเรื่องใหม่"}: ${FEEDBACK_TYPES[f.type] || ""} ${cleanStr(f.message, 80)}`,
       );
+      broadcast("feedback", { action: "update" });
       return { item: f };
     },
     { auth: "staff" },
@@ -2136,6 +2147,7 @@ function createApp(opts = {}) {
         `ลบเรื่อง${FEEDBACK_TYPES[f.type] || ""}ถาวร: ${cleanStr(f.message, 80)}`,
         { level: "warn" },
       );
+      broadcast("feedback", { action: "delete" });
       return { ok: true };
     },
     { auth: "admin" },

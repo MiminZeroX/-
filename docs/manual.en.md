@@ -239,7 +239,7 @@ The dashboard shows today/this month, a bookings chart, requests **รออน�
 
 ![Editing a room and its photo](images/a-room-photo.jpg)
 
-**Complaints and suggestions** (menu **ร้องเรียนและข้อเสนอแนะ**): filter by not done / done / all, press **ทำเครื่องหมายว่าดำเนินการแล้ว** (Mark as done) when handled, and use the bin icon (administrators only) to delete an item permanently when its retention period ends or the sender asks.
+**Complaints and suggestions** (menu **ร้องเรียน · ข้อเสนอแนะ**): filter by not done / done / all, the orange number on the menu counts items not yet done (the browser tab title adds it to pending bookings) and a pop-up with the notification sound appears when a new item arrives; press **ทำเครื่องหมายว่าดำเนินการแล้ว** (Mark as done) when handled, and use the bin icon (administrators only) to delete an item permanently when its retention period ends or the sender asks.
 
 ![Complaints and suggestions](images/a-feedback.jpg)
 
@@ -312,7 +312,7 @@ Every booking, edit, approval, sign-in (including failures) and settings change 
 | A room                                         | **ห้องประชุม** (Rooms) › **นำออก** (Remove)                                                                         | The room is hidden, its upcoming bookings are cancelled, history is kept                           |
 | A user                                         | **ผู้ใช้งานระบบ** (Users) › **ลบ** (Delete)                                                                         | You cannot delete yourself or the last administrator — to keep history, **deactivate** instead     |
 | Departments / holidays                         | **หน่วยงานและวันหยุด** › remove the item › **บันทึก** (Save)                                                        | Existing bookings are unchanged                                                                    |
-| A complaint / suggestion                       | **ร้องเรียนและข้อเสนอแนะ** › bin icon › **ลบถาวร**                                                                  | Text, name and contact are removed; restoring a backup does not bring complaints back             |
+| A complaint / suggestion                       | **ร้องเรียน · ข้อเสนอแนะ** › bin icon › **ลบถาวร**                                                                  | Text, name and contact are removed; restoring a backup does not bring complaints back             |
 | Automatic backups                              | Cannot be deleted by hand                                                                                           | Removed automatically after the configured days (default 30)                                       |
 
 **Clearing booking data (old bookings / everything)**

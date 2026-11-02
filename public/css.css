@@ -4409,7 +4409,15 @@ button.agenda-item:hover {
   background: var(--brand);
   animation: grow var(--t3) var(--ease-out);
 }
+/* ชื่อเมนูอยู่บรรทัดเดียวเสมอ แม้มีตัวเลขแจ้งเตือนต่อท้าย */
+.side-link > span:not(.pill) {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .side-link .pill {
+  flex: none;
   margin-left: auto;
   min-width: 22px;
   height: 22px;
