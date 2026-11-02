@@ -170,7 +170,7 @@ function isSequence(s) {
 // คืนข้อความภาษาไทยที่บอกวิธีแก้ หรือ null ถ้าใช้ได้
 function passwordIssue(password, { username = "", name = "" } = {}) {
   const pw = String(password || "");
-  if (pw.length < 12) return "ต้องมีอย่างน้อย 12 ตัวอักษร";
+  if (pw.length < 5) return "ต้องมีอย่างน้อย 5 ตัวอักษร";
   if (pw.length > 200) return "ยาวได้ไม่เกิน 200 ตัวอักษร";
   const low = pw.toLowerCase();
   if (isCommon(low))
