@@ -91,8 +91,18 @@ function withHsts(res) {
 // ---------------------------------------------------------------- Worker หลัก
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    // เข้าแบบ http:// → ส่งต่อไป https:// (ลิงก์ .workers.dev ตั้ง "Always Use HTTPS" เองไม่ได้)
+    // ยกเว้นทดสอบในเครื่องด้วย wrangler dev (http://localhost)
+    if (url.protocol === "http:" && !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(url.hostname)) {
+      url.protocol = "https:";
+      return withSecurity(new Response(null, { status: 301 }), {
+        Location: url.href,
+        "Cache-Control": "no-store",
+      });
+    }
     const res = await route(request, env);
-    return new URL(request.url).protocol === "https:" ? withHsts(res) : res;
+    return url.protocol === "https:" ? withHsts(res) : res;
   },
 };
 

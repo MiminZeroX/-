@@ -4923,6 +4923,13 @@ button.agenda-item:hover {
   flex: 1;
   min-width: 200px;
 }
+/* ‹ วันที่ › (รายงาน KPI): ช่องวันที่ไม่ยืดเต็มแถว จึงอยู่บรรทัดเดียวกับปุ่มเลื่อนช่วง */
+.toolbar .date-nav {
+  flex-wrap: nowrap;
+}
+.toolbar .date-nav .input {
+  width: auto;
+}
 .toolbar .input,
 .toolbar .select {
   min-height: 42px;

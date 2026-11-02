@@ -11164,7 +11164,7 @@
               <button data-value="year">รายปี</button>
               <button data-value="custom">กำหนดเอง</button>
             </div>
-            <div class="row-wrap" id="k-nav">
+            <div class="row-wrap date-nav" id="k-nav">
               <button class="btn btn-ghost btn-icon" data-shift="-1" aria-label="ช่วงก่อนหน้า">
                 ${icon("chevron-left")}
               </button>

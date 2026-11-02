@@ -140,6 +140,8 @@ const missingHeaders = (h) =>
   Object.entries(REQUIRED_HEADERS)
     .filter(([name, re]) => !re.test(h.get(name) || ""))
     .map(([name]) => name);
+// API ที่ไม่มีในเวอร์ชันของระบบที่ตรวจ (ระบบเก่ากว่าโปรแกรมตรวจ) — ไม่ใช่ช่องโหว่ แต่ควรอัปเดตระบบ
+const absent = (r) => r.status === 405 || (r.status === 404 && /ไม่พบ API นี้/.test(r.text));
 const bkkDate = (offsetDays = 0) =>
   new Date(Date.now() + 7 * 3600000 + offsetDays * 86400000).toISOString().slice(0, 10);
 
@@ -213,7 +215,7 @@ function buildChecks(ctx) {
       group: "func",
       sev: "high",
       title: "ทุกหน้าของระบบเปิดได้",
-      fix: "หน้าที่เปิดไม่ได้อาจถูกลบหรือเปลี่ยนชื่อในโฟลเดอร์ public/ — ตรวจประวัติการแก้ไขใน GitHub แล้วย้อนกลับ",
+      fix: "ถ้าเพิ่งอัปเดตระบบ ตรวจ Cloudflare › Deployments ว่าเวอร์ชันล่าสุดขึ้นแล้ว · ถ้าไม่ใช่ หน้าอาจถูกลบ/เปลี่ยนชื่อใน public/ — ย้อนกลับจากประวัติใน GitHub",
       async run() {
         const bad = [];
         for (const p of PAGES) {
@@ -498,14 +500,19 @@ function buildChecks(ctx) {
       sev: "high",
       owasp: "A01 Broken Access Control",
       title: "ข้อมูลในหน้าผู้ดูแลต้องเข้าสู่ระบบก่อนทุกจุด",
-      fix: "ตรวจตัวเลือก { auth: ... } ของ route ที่ไม่ผ่านใน src/app.js — ห้ามลบออก",
+      fix: "ไม่ผ่าน: ตรวจตัวเลือก { auth: ... } ของ route นั้นใน src/app.js (ห้ามลบออก) · ควรตรวจ (ไม่พบบางจุด): อัปเดตระบบให้ตรงกับเวอร์ชันใน GitHub main",
       async run() {
         const bad = [];
+        const missing = [];
         for (const p of ADMIN_READ) {
           const r = await req("GET", p);
-          if (r.ok && r.status !== 401 && r.status !== 403) bad.push(`${p} → ${r.status}`);
+          if (!r.ok || r.status === 401 || r.status === 403) continue;
+          (absent(r) ? missing : bad).push(`${p} → ${r.status}`);
         }
-        return bad.length ? ["fail", `อ่านได้โดยไม่เข้าสู่ระบบ: ${bad.join(", ")}`] : ["pass", `ปฏิเสธครบ ${ADMIN_READ.length} จุด (401)`];
+        if (bad.length) return ["fail", `อ่านได้โดยไม่เข้าสู่ระบบ: ${bad.join(", ")}`];
+        return missing.length
+          ? ["warn", `ทุกจุดที่มีปฏิเสธถูกต้อง แต่ไม่พบ ${missing.length} จุดในระบบนี้ (ระบบอาจยังไม่อัปเดตเป็นเวอร์ชันล่าสุด): ${missing.join(", ")}`]
+          : ["pass", `ปฏิเสธครบ ${ADMIN_READ.length} จุด (401)`];
       },
     },
     {
@@ -514,17 +521,22 @@ function buildChecks(ctx) {
       sev: "high",
       owasp: "A01 Broken Access Control",
       title: "คำสั่งแก้ไข/ลบของผู้ดูแลใช้ไม่ได้ถ้าไม่เข้าสู่ระบบ",
-      fix: "ตรวจตัวเลือก { auth: ... } ของ route ที่ไม่ผ่านใน src/app.js — ห้ามลบออก",
+      fix: "ไม่ผ่าน: ตรวจตัวเลือก { auth: ... } ของ route นั้นใน src/app.js (ห้ามลบออก) · ควรตรวจ (ไม่พบบางคำสั่ง): อัปเดตระบบให้ตรงกับเวอร์ชันใน GitHub main",
       async run() {
         const bad = [];
+        const missing = [];
         for (const [m, p, b] of ADMIN_WRITE) {
           const r = await req(m, p, {
             headers: { "x-requested-with": "br", "content-type": "application/json" },
             body: b ? JSON.stringify(b) : undefined,
           });
-          if (r.ok && r.status !== 401 && r.status !== 403) bad.push(`${m} ${p} → ${r.status}`);
+          if (!r.ok || r.status === 401 || r.status === 403) continue;
+          (absent(r) ? missing : bad).push(`${m} ${p} → ${r.status}`);
         }
-        return bad.length ? ["fail", `ไม่ถูกปฏิเสธ: ${bad.join(", ")}`] : ["pass", `ปฏิเสธครบ ${ADMIN_WRITE.length} คำสั่ง (ทดสอบด้วยค่าที่ไม่มีผลกับข้อมูล)`];
+        if (bad.length) return ["fail", `ไม่ถูกปฏิเสธ: ${bad.join(", ")}`];
+        return missing.length
+          ? ["warn", `ทุกคำสั่งที่มีปฏิเสธถูกต้อง แต่ไม่พบ ${missing.length} คำสั่งในระบบนี้ (ระบบอาจยังไม่อัปเดตเป็นเวอร์ชันล่าสุด): ${missing.join(", ")}`]
+          : ["pass", `ปฏิเสธครบ ${ADMIN_WRITE.length} คำสั่ง (ทดสอบด้วยค่าที่ไม่มีผลกับข้อมูล)`];
       },
     },
     {
